@@ -30,8 +30,8 @@ object EventEvaluator {
         .detect(event)
         .map(x => WFExecution.complete(wio, handler.handle(input, x), input, index))
 
-    def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result = doHandle(wio.evtHandler.map(_._1))
-    def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result                               = doHandle(wio.evtHandler)
+    def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result = doHandle(wio.evtHandler.map(_._1))
+    def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result                               = doHandle(wio.evtHandler)
     def onAwaitingTime(wio: WIO.AwaitingTime[Ctx, In, Err, Out]): Result                           = doHandle(wio.releasedEventHandler)
     override def onRecovery[Evt](wio: WIO.Recovery[Ctx, In, Err, Out, Evt]): Result                = doHandle(wio.eventHandler.map(_.asRight))
 
@@ -56,7 +56,7 @@ object EventEvaluator {
         .map(convertEmbeddingResult2(wio, _, input))
     }
 
-    def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Result = {
+    def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Result = {
       doHandle(wio.eventHandler.map(_.asRight)).orElse(handleCheckpointBase(wio))
     }
 

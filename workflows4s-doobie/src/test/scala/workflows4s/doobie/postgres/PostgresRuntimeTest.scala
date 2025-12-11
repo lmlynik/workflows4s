@@ -5,7 +5,7 @@ import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.doobie.DatabaseRuntime
 import workflows4s.doobie.postgres.testing.{JavaSerdeEventCodec, PostgresRuntimeAdapter, PostgresSuite}
-import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
+import workflows4s.runtime.instanceengine.WorkflowInstanceEngineBuilder
 import workflows4s.testing.WorkflowRuntimeTest
 import workflows4s.wio.{TestCtx2, WorkflowContext}
 
@@ -24,7 +24,7 @@ class PostgresRuntimeTest extends AnyFreeSpec with PostgresSuite with WorkflowRu
         .done
 
       val storage          = PostgresWorkflowStorage()(using noopCodec(Event()))
-      val engine           = WorkflowInstanceEngine.basic()
+      val engine           = WorkflowInstanceEngineBuilder.withJavaTimeIO().withoutWakeUps.withoutRegistering.withSingleStepEvaluation.withoutLogging.get
       val runtime          = DatabaseRuntime.create(wio, State(), xa, engine, storage, "workflow")
       val workflowInstance = runtime.createInstance("1").unsafeRunSync()
 

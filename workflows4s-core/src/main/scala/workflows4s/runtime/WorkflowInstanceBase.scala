@@ -1,21 +1,24 @@
 package workflows4s.runtime
 
-import cats.Monad
-import cats.effect.{IO, LiftIO}
-import cats.syntax.all.*
+import cats.effect.IO
 import com.typesafe.scalalogging.StrictLogging
+import workflows4s.effect.Effect
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine.PostExecCommand
 import workflows4s.wio.*
 import workflows4s.wio.internal.{SignalResult, WakeupResult}
 import workflows4s.wio.model.WIOExecutionProgress
 
-import scala.util.chaining.scalaUtilChainingOps
-
-trait WorkflowInstanceBase[F[_], Ctx <: WorkflowContext] extends WorkflowInstance[F, WCState[Ctx]] with StrictLogging {
-
-  protected given fMonad: Monad[F]
-  protected given liftIO: LiftIO[F]
+/** Base trait for workflow instance implementations.
+  *
+  * Note: This currently uses WorkflowInstanceEngine[IO] because the engine methods return IO-based results internally
+  * (WakeupResult and SignalResult contain IO). The outer F[_] effect is used for the instance API.
+  *
+  * TODO: Consider moving to workflows4s-cats-effect module since it requires IO internally.
+  */
+trait WorkflowInstanceBase[F[_], Ctx <: WorkflowContext](using val E: Effect[F])
+    extends WorkflowInstance[F, WCState[Ctx]]
+    with StrictLogging {
 
   protected def persistEvent(event: WCEvent[Ctx]): F[Unit]
   protected def updateState(newState: ActiveWorkflow[Ctx]): F[Unit]
@@ -23,30 +26,30 @@ trait WorkflowInstanceBase[F[_], Ctx <: WorkflowContext] extends WorkflowInstanc
   protected def lockState[T](update: ActiveWorkflow[Ctx] => F[T]): F[T]
   // this could theoretically be implemented in terms of `updateState` but we dont want to lock anything unnecessarly
   protected def getWorkflow: F[ActiveWorkflow[Ctx]]
-  protected def engine: WorkflowInstanceEngine
+  protected def engine: WorkflowInstanceEngine[IO]
 
-  override def queryState(): F[WCState[Ctx]] = getWorkflow.flatMap(x => engine.queryState(x).pipe(liftIO.liftIO))
+  import E.{flatMap, map, pure, unit, liftIO, traverse_}
 
-  override def getProgress: F[WIOExecutionProgress[WCState[Ctx]]] = getWorkflow.flatMap(x => engine.getProgress(x).pipe(liftIO.liftIO))
+  override def queryState(): F[WCState[Ctx]] = flatMap(getWorkflow)(x => liftIO(engine.queryState(x)))
 
-  override def getExpectedSignals: F[List[SignalDef[?, ?]]] = getWorkflow.flatMap(x => engine.getExpectedSignals(x).pipe(liftIO.liftIO))
+  override def getProgress: F[WIOExecutionProgress[WCState[Ctx]]] = flatMap(getWorkflow)(x => liftIO(engine.getProgress(x)))
+
+  override def getExpectedSignals: F[List[SignalDef[?, ?]]] = flatMap(getWorkflow)(x => liftIO(engine.getExpectedSignals(x)))
 
   override def deliverSignal[Req, Resp](signalDef: SignalDef[Req, Resp], req: Req): F[Either[WorkflowInstance.UnexpectedSignal, Resp]] = {
     def processSignal(state: ActiveWorkflow[Ctx]): F[Either[WorkflowInstance.UnexpectedSignal, Resp]] = {
-      for {
-        resultOpt <- engine.handleSignal(state, signalDef, req).pipe(liftIO.liftIO)
-        result    <- resultOpt match {
-                       case SignalResult.Processed(resultIO) =>
-                         for {
-                           eventAndResp <- resultIO.pipe(liftIO.liftIO)
-                           _            <- persistEvent(eventAndResp.event)
-                           newStateOpt  <- engine.handleEvent(state, eventAndResp.event).to[IO].pipe(liftIO.liftIO)
-                           _            <- newStateOpt.traverse_(updateState)
-                           _            <- handleStateChange(state, newStateOpt)
-                         } yield Right(eventAndResp._2)
-                       case SignalResult.UnexpectedSignal    => Left(WorkflowInstance.UnexpectedSignal(signalDef)).pure[F]
-                     }
-      } yield result
+      flatMap(liftIO(engine.handleSignal(state, signalDef, req))) {
+        case SignalResult.Processed(resultIO) =>
+          flatMap(liftIO(resultIO)) { eventAndResp =>
+            flatMap(persistEvent(eventAndResp.event)) { _ =>
+              val newStateOpt = engine.handleEvent(state, eventAndResp.event)
+              flatMap(traverse_(newStateOpt.toList)(updateState)) { _ =>
+                map(handleStateChange(state, newStateOpt))(_ => Right(eventAndResp.response))
+              }
+            }
+          }
+        case SignalResult.UnexpectedSignal    => pure(Left(WorkflowInstance.UnexpectedSignal(signalDef)))
+      }
     }
     lockState(processSignal)
   }
@@ -56,43 +59,35 @@ trait WorkflowInstanceBase[F[_], Ctx <: WorkflowContext] extends WorkflowInstanc
   private def handleStateChange(oldState: ActiveWorkflow[Ctx], newStateOpt: Option[ActiveWorkflow[Ctx]]): F[Unit] = {
     newStateOpt match {
       case Some(newState) =>
-        for {
-          cmds <- engine.onStateChange(oldState, newState).pipe(liftIO.liftIO)
-          _    <- cmds.toList.traverse({ case PostExecCommand.WakeUp =>
-                    processWakeup(newState)
-                  })
-        } yield ()
-      case None           => fMonad.unit
+        flatMap(liftIO(engine.onStateChange(oldState, newState))) { cmds =>
+          traverse_(cmds.toList) { case PostExecCommand.WakeUp =>
+            processWakeup(newState)
+          }
+        }
+      case None           => unit
     }
   }
 
-  private def processWakeup(state: ActiveWorkflow[Ctx]) = {
-    for {
-      resultOpt <- engine.triggerWakeup(state).pipe(liftIO.liftIO)
-      _         <- resultOpt match {
-                     case WakeupResult.Processed(resultIO) =>
-                       for {
-                         retryOrEvent <- resultIO.pipe(liftIO.liftIO)
-                         newStateOpt  <- retryOrEvent match {
-                                           case WakeupResult.ProcessingResult.Failed(_)        => None.pure[F]
-                                           case WakeupResult.ProcessingResult.Proceeded(event) =>
-                                             for {
-                                               _           <- persistEvent(event)
-                                               newStateOpt <- engine.handleEvent(state, event).to[IO].pipe(liftIO.liftIO)
-                                               _           <- newStateOpt.traverse_(updateState)
-                                               _           <- handleStateChange(state, newStateOpt)
-                                             } yield newStateOpt
-                                         }
-                       } yield newStateOpt
-                     case WakeupResult.Noop                => None.pure[F]
-                   }
-    } yield ()
+  private def processWakeup(state: ActiveWorkflow[Ctx]): F[Unit] = {
+    flatMap(liftIO(engine.triggerWakeup(state))) {
+      case WakeupResult.Processed(resultIO) =>
+        flatMap(liftIO(resultIO)) {
+          case WakeupResult.ProcessingResult.Failed(_)        => unit
+          case WakeupResult.ProcessingResult.Proceeded(event) =>
+            flatMap(persistEvent(event)) { _ =>
+              val newStateOpt = engine.handleEvent(state, event)
+              flatMap(traverse_(newStateOpt.toList)(updateState)) { _ =>
+                handleStateChange(state, newStateOpt)
+              }
+            }
+        }
+      case WakeupResult.Noop                => unit
+    }
   }
 
   protected def recover(initialState: ActiveWorkflow[Ctx], events: Seq[WCEvent[Ctx]]): F[ActiveWorkflow[Ctx]] = {
-    events
-      .foldLeftM(initialState)(engine.processEvent)
-      .to[IO]
-      .pipe(liftIO.liftIO)
+    events.toList.foldLeft(pure(initialState)) { (stateF, event) =>
+      map(stateF)(engine.processEvent(_, event))
+    }
   }
 }

@@ -1,6 +1,6 @@
 package workflows4s.runtime.instanceengine
 
-import cats.effect.{IO, Sync, SyncIO}
+import cats.effect.IO
 import cats.syntax.all.*
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.MDC
@@ -10,9 +10,16 @@ import workflows4s.wio.model.WIOExecutionProgress
 import workflows4s.wio.*
 import workflows4s.wio.internal.{SignalResult, WakeupResult}
 
+/** Engine that logs all operations for debugging and observability.
+  *
+  * Note: This engine is IO-specific because WakeupResult and SignalResult internally use IO, and we need to wrap
+  * logging around those internal IO operations.
+  *
+  * TODO: Move to workflows4s-cats-effect module
+  */
 class LoggingWorkflowInstanceEngine(
-    override protected val delegate: WorkflowInstanceEngine,
-) extends DelegatingWorkflowInstanceEngine
+    override protected val delegate: WorkflowInstanceEngine[IO],
+) extends DelegatingWorkflowInstanceEngine[IO]
     with StrictLogging {
 
   override def queryState[Ctx <: WorkflowContext](workflow: ActiveWorkflow[Ctx]): IO[WCState[Ctx]] = {
@@ -101,15 +108,14 @@ class LoggingWorkflowInstanceEngine(
   override def handleEvent[Ctx <: WorkflowContext](
       workflow: ActiveWorkflow[Ctx],
       event: WCEvent[Ctx],
-  ): SyncIO[Option[ActiveWorkflow[Ctx]]] = {
-    (SyncIO(logger.debug(s"[${workflow.id}] handleEvent(event = $event)")) *>
-      delegate
-        .handleEvent(workflow, event)
-        .flatMap {
-          case Some(newWf) => SyncIO(logger.debug(s"[${workflow.id}] handleEvent → new state")) *> SyncIO.pure(Some(newWf))
-          case None        => SyncIO(logger.warn(s"[${workflow.id}] handleEvent → no state change")) *> SyncIO.pure(None)
-        }
-        .onError(e => SyncIO(logger.error(s"[${workflow.id}] handleEvent failed", e)))).withMDC(workflow)
+  ): Option[ActiveWorkflow[Ctx]] = {
+    logger.debug(s"[${workflow.id}] handleEvent(event = $event)")
+    val result = delegate.handleEvent(workflow, event)
+    result match {
+      case Some(_) => logger.debug(s"[${workflow.id}] handleEvent → new state")
+      case None    => logger.warn(s"[${workflow.id}] handleEvent → no state change")
+    }
+    result
   }
 
   override def onStateChange[Ctx <: WorkflowContext](
@@ -125,12 +131,12 @@ class LoggingWorkflowInstanceEngine(
         .onError(e => IO(logger.error(s"[${oldState.id}] onStateChange failed", e)))).withMDC(newState)
   }
 
-  extension [F[_]: {Sync as fSync}, A](ioa: F[A]) {
-    def withMDC(activeWorkflow: ActiveWorkflow[? <: WorkflowContext]): F[A] = {
-      fSync.delay {
+  extension [A](ioa: IO[A]) {
+    def withMDC(activeWorkflow: ActiveWorkflow[? <: WorkflowContext]): IO[A] = {
+      IO {
         MDC.put("workflow_instance_id", activeWorkflow.id.instanceId)
         MDC.put("workflow_template_id", activeWorkflow.id.templateId)
-      } *> fSync.guarantee(ioa, fSync.delay(MDC.clear()))
+      } *> ioa.guarantee(IO(MDC.clear()))
     }
   }
 

@@ -15,9 +15,9 @@ private[workflows4s] object GetSignalDefsEvaluator {
     override type Result = List[SignalDef[?, ?]]
 
     // Base cases
-    override def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result = List(wio.sigDef)
-    override def onExecuted[In1](wio: WIO.Executed[Ctx, Err, Out, In1]): Result                             = Nil
-    override def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result                               = Nil
+    override def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result = List(wio.sigDef)
+    override def onExecuted[In1](wio: WIO.Executed[Ctx, Err, Out, In1]): Result                                      = Nil
+    override def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result                               = Nil
     override def onNoop(wio: WIO.End[Ctx]): Result                                                          = Nil
     override def onPure(wio: WIO.Pure[Ctx, In, Err, Out]): Result                                           = Nil
     override def onTimer(wio: WIO.Timer[Ctx, In, Err, Out]): Result                                         = Nil
@@ -32,7 +32,7 @@ private[workflows4s] object GetSignalDefsEvaluator {
     override def onTransform[In1, Out1 <: WCState[Ctx], Err1](wio: WIO.Transform[Ctx, In1, Err1, Out1, In, Out, Err]): Result   = recurse(wio.base)
     override def onHandleError[ErrIn, TempOut <: WCState[Ctx]](wio: WIO.HandleError[Ctx, In, Err, Out, ErrIn, TempOut]): Result = Nil
 
-    override def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Result = recurse(wio.base)
+    override def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Result = recurse(wio.base)
     override def onEmbedded[InnerCtx <: WorkflowContext, InnerOut <: WCState[InnerCtx], MappingOutput[_ <: WCState[InnerCtx]] <: WCState[Ctx]](
         wio: WIO.Embedded[Ctx, In, Err, InnerCtx, InnerOut, MappingOutput],
     ): Result = GetSignalDefsEvaluator.run(wio.inner)
@@ -60,7 +60,7 @@ private[workflows4s] object GetSignalDefsEvaluator {
     override def onParallel[InterimState <: WCState[Ctx]](wio: WIO.Parallel[Ctx, In, Err, Out, InterimState]): Result =
       wio.elements.flatMap(elem => recurse(elem.wio)).toList
 
-    def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): Result = recurse(wio.base)
+    def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): Result = recurse(wio.base)
 
     override def onForEach[ElemId, InnerCtx <: WorkflowContext, ElemOut <: WCState[InnerCtx], InterimState <: WCState[Ctx]](
         wio: WIO.ForEach[Ctx, In, Err, Out, ElemId, InnerCtx, ElemOut, InterimState],

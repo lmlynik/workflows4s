@@ -1,7 +1,8 @@
 package workflows4s.testing
 
 import cats.effect.IO
-import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
+import workflows4s.effect.CatsEffect.given
+import workflows4s.runtime.instanceengine.{IOWorkflowInstanceEngineBuilder, WorkflowInstanceEngine}
 import workflows4s.runtime.{InMemorySyncRuntime, InMemorySyncWorkflowInstance, WorkflowInstanceId}
 import workflows4s.wio.*
 
@@ -12,16 +13,15 @@ import scala.util.Random
 
 class TestRuntime {
   val clock        = TestClock()
-  val knockerUpper = RecordingKnockerUpper()
+  val knockerUpper = RecordingKnockerUpper[IO]()
 
-  val engine: WorkflowInstanceEngine =
-    WorkflowInstanceEngine.builder
-      .withJavaTime(clock)
-      .withWakeUps(knockerUpper)
-      .withoutRegistering
-      .withGreedyEvaluation
-      .withLogging
-      .get
+  val engine: WorkflowInstanceEngine[IO] = IOWorkflowInstanceEngineBuilder
+    .withJavaTimeIO(clock)
+    .withWakeUps(knockerUpper)
+    .withoutRegistering
+    .withGreedyEvaluation
+    .withLogging
+    .get
 
   def createInstance(wio: WIO[TestState, Nothing, TestState, TestCtx2.Ctx]): InMemorySyncWorkflowInstance[TestCtx2.Ctx] = {
     import cats.effect.unsafe.implicits.global
@@ -46,11 +46,18 @@ object TestUtils {
   def createInstance2(wio: WIO[TestState, Nothing, TestState, TestCtx2.Ctx]): (TestClock, InMemorySyncWorkflowInstance[TestCtx2.Ctx]) = {
     val clock                                                = new TestClock()
     import cats.effect.unsafe.implicits.global
+    val engine = IOWorkflowInstanceEngineBuilder
+      .withJavaTimeIO(clock)
+      .withoutWakeUps
+      .withoutRegistering
+      .withSingleStepEvaluation
+      .withoutLogging
+      .get
     val instance: InMemorySyncWorkflowInstance[TestCtx2.Ctx] =
       new InMemorySyncRuntime[TestCtx2.Ctx](
         wio.provideInput(TestState.empty),
         TestState.empty,
-        WorkflowInstanceEngine.basic(clock),
+        engine,
         "test",
       )
         .createInstance(UUID.randomUUID().toString)

@@ -27,8 +27,8 @@ abstract class Visitor[Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](wio
   type Result
   type State = WCState[Ctx]
 
-  def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result
-  def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result
+  def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result
+  def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result
   def onFlatMap[Out1 <: WCState[Ctx], Err1 <: Err](wio: WIO.FlatMap[Ctx, Err1, Err, Out1, Out, In]): Result
   def onTransform[In1, Out1 <: WCState[Ctx], Err1](wio: WIO.Transform[Ctx, In1, Err1, Out1, In, Out, Err]): Result
   def onNoop(wio: WIO.End[Ctx]): Result
@@ -48,9 +48,9 @@ abstract class Visitor[Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](wio
   def onDiscarded[In1](wio: WIO.Discarded[Ctx, In1]): Result
 
   def onParallel[InterimState <: WCState[Ctx]](wio: WIO.Parallel[Ctx, In, Err, Out, InterimState]): Result
-  def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Result
+  def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Result
   def onRecovery[Evt](wio: WIO.Recovery[Ctx, In, Err, Out, Evt]): Result
-  def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): Result
+  def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): Result
   def onForEach[ElemId, InnerCtx <: WorkflowContext, ElemOut <: WCState[InnerCtx], InterimState <: WCState[Ctx]](
       wio: WIO.ForEach[Ctx, In, Err, Out, ElemId, InnerCtx, ElemOut, InterimState],
   ): Result
@@ -58,8 +58,8 @@ abstract class Visitor[Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](wio
   @nowarn("msg=the type test for workflows4s.wio.WIO.Embedded")
   def run: Result = {
     wio match {
-      case x: WIO.HandleSignal[?, ?, ?, ?, ?, ?, ?]                    => onSignal(x)
-      case x: WIO.RunIO[?, ?, ?, ?, ?]                                 => onRunIO(x)
+      case x: WIO.HandleSignal[?, ?, ?, ?, ?, ?, ?, ?]                 => onSignal(x)
+      case x: WIO.RunIO[?, ?, ?, ?, ?, ?]                              => onRunIO(x)
       // https://github.com/scala/scala3/issues/20040
       case x: WIO.FlatMap[?, ? <: Err, Err, ? <: WCState[Ctx], ?, ?]   =>
         x match {
@@ -80,9 +80,9 @@ abstract class Visitor[Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](wio
       case x: WIO.Executed[?, ?, ?, ?]                                 => onExecuted(x)
       case x: WIO.Discarded[?, ?]                                      => onDiscarded(x)
       case x: WIO.Parallel[?, ?, ?, ? <: State, ? <: State]            => onParallel(x)
-      case x: WIO.Checkpoint[?, ?, ?, ? <: State, ?]                   => onCheckpoint(x)
+      case x: WIO.Checkpoint[?, ?, ?, ?, ? <: State, ?]                => onCheckpoint(x)
       case x: WIO.Recovery[?, ?, ?, ?, ?]                              => onRecovery(x)
-      case x: WIO.Retry[?, ?, ?, ?]                                    => onRetry(x)
+      case x: WIO.Retry[?, ?, ?, ?, ?]                                 => onRetry(x)
       case x: WIO.ForEach[?, ?, ?, ?, ?, ?, ?, ?]                      => onForEach(x.asInstanceOf)  // TODO make compiler happy
     }
   }

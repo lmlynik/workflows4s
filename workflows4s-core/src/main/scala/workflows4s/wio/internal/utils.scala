@@ -1,6 +1,6 @@
 package workflows4s.wio.internal
 
-import cats.effect.IO
+import workflows4s.effect.Effect
 
 import scala.util.chaining.scalaUtilChainingOps
 
@@ -31,6 +31,6 @@ object EventHandler {
   }
 }
 
-case class SignalHandler[-Sig, +Evt, -In](handle: (In, Sig) => IO[Evt]) {
-  def map[E1](f: Evt => E1): SignalHandler[Sig, E1, In] = SignalHandler((in, sig) => handle(in, sig).map(f))
+case class SignalHandler[F[_], -Sig, Evt, -In](handle: (In, Sig) => F[Evt])(using E: Effect[F]) {
+  def map[E1](f: Evt => E1): SignalHandler[F, Sig, E1, In] = SignalHandler((in, sig) => E.map(handle(in, sig))(f))
 }

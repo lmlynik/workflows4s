@@ -33,7 +33,7 @@ object WorkflowBehavior {
       id: PersistenceId,
       workflow: WIO.Initial[Ctx],
       initialState: WCState[Ctx],
-      engine: WorkflowInstanceEngine,
+      engine: WorkflowInstanceEngine[IO],
   ): Behavior[Command[Ctx]] =
     new WorkflowBehavior(instanceId, id, workflow, initialState, engine).behavior
 
@@ -72,7 +72,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
     id: PersistenceId,
     workflow: WIO.Initial[Ctx],
     initialState: WCState[Ctx],
-    engine: WorkflowInstanceEngine,
+    engine: WorkflowInstanceEngine[IO],
 ) extends StrictLogging {
   import WorkflowBehavior.*
 
@@ -135,7 +135,6 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
   private def handleEvent(state: St, event: Event): State[Ctx] = {
     engine
       .processEvent(state.workflow, event)
-      .unsafeRunSync()
       .pipe(State.apply)
   }
 

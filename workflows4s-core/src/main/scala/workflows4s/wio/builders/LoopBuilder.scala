@@ -1,8 +1,7 @@
 package workflows4s.wio.builders
 
 import workflows4s.wio.*
-
-import scala.util.chaining.scalaUtilChainingOps
+import workflows4s.wio.ErrorMeta
 
 object LoopBuilder {
 
@@ -25,7 +24,7 @@ object LoopBuilder {
         def onRestart(action: WIO[ReturnIn, Err, BodyIn, Ctx]): Step3 = Step3(action)
 
         def onRestartContinue(using ev1: ReturnIn <:< BodyIn): Step3 = Step3(
-          WIO.build[Ctx].pure.makeFrom[ReturnIn].value(_.pipe(ev1.apply)).done,
+          WIO.Pure[Ctx, ReturnIn, Err, BodyIn](x => Right(ev1(x)), WIO.Pure.Meta(ErrorMeta.noError, None)),
         )
 
         case class Step3(

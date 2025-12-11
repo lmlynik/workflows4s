@@ -16,8 +16,8 @@ private[workflows4s] object GetIndexEvaluator {
 
     def onExecuted[In1](wio: WIO.Executed[Ctx, Err, Out, In1]): Result = Some(wio.index)
 
-    def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result = None
-    def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result                               = None
+    def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result = None
+    def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result                               = None
     def onNoop(wio: WIO.End[Ctx]): Result                                                          = None
     def onPure(wio: WIO.Pure[Ctx, In, Err, Out]): Result                                           = None
     def onTimer(wio: WIO.Timer[Ctx, In, Err, Out]): Result                                         = None
@@ -28,8 +28,8 @@ private[workflows4s] object GetIndexEvaluator {
     def onFlatMap[Out1 <: WCState[Ctx], Err1 <: Err](wio: WIO.FlatMap[Ctx, Err1, Err, Out1, Out, In]): Result          = recurse(wio.base)
     def onTransform[In1, Out1 <: WCState[Ctx], Err1](wio: WIO.Transform[Ctx, In1, Err1, Out1, In, Out, Err]): Result   = recurse(wio.base)
     def onHandleError[ErrIn, TempOut <: WCState[Ctx]](wio: WIO.HandleError[Ctx, In, Err, Out, ErrIn, TempOut]): Result = recurse(wio.base)
-    def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Result                           = recurse(wio.base)
-    def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): Option[Int]                                                        = recurse(wio.base)
+    def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Result                   = recurse(wio.base)
+    def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): Option[Int]                                                = recurse(wio.base)
     def onEmbedded[InnerCtx <: WorkflowContext, InnerOut <: WCState[InnerCtx], MappingOutput[
         _ <: WCState[InnerCtx],
     ] <: WCState[Ctx]](wio: WIO.Embedded[Ctx, In, Err, InnerCtx, InnerOut, MappingOutput]): Result = GetIndexEvaluator.findMaxIndex(wio.inner)

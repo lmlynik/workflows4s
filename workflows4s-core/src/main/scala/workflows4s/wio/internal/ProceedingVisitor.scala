@@ -1,6 +1,7 @@
 package workflows4s.wio.internal
 
 import cats.implicits.{catsSyntaxOptionId, toTraverseOps}
+import workflows4s.effect.Effect
 import workflows4s.wio.WIO.HandleInterruption.{InterruptionStatus, InterruptionType}
 import workflows4s.wio.*
 import workflows4s.wio.WIO.Loop.State
@@ -281,7 +282,8 @@ abstract class ProceedingVisitor[Ctx <: WorkflowContext, In, Err, Out <: WCState
     }
   }
 
-  def handleCheckpointBase[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Option[NewWf] = {
+  def handleCheckpointBase[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Option[NewWf] = {
+    given Effect[F] = wio.effect
     recurse(wio.base, input, lastSeenState)
       .map({
         case WFExecution.Complete(newWio) =>
@@ -293,11 +295,13 @@ abstract class ProceedingVisitor[Ctx <: WorkflowContext, In, Err, Out <: WCState
       })
   }
 
-  override def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): Option[NewWf] =
+  override def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): Option[NewWf] = {
+    given Effect[F] = wio.effect
     recurse(wio.base, input).map({
       case WFExecution.Complete(newWio) => WFExecution.complete(wio.copy(base = newWio), newWio.output, newWio.input, newWio.index)
       case WFExecution.Partial(newWio)  => WFExecution.Partial(wio.copy(base = newWio))
     })
+  }
 
   def recurse[I1, E1, O1 <: WCState[Ctx]](
       wio: WIO[I1, E1, O1, Ctx],

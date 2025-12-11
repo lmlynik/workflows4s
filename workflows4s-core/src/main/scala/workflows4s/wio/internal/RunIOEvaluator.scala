@@ -25,14 +25,17 @@ object RunIOEvaluator {
   ) extends Visitor[Ctx, In, Err, Out](wio) {
     override type Result = Option[IO[Either[Instant, WCEvent[Ctx]]]]
 
-    def onExecuted[In1](wio: WIO.Executed[Ctx, Err, Out, In1]): Result                             = None
-    def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result = None
-    def onNoop(wio: WIO.End[Ctx]): Result                                                          = None
-    def onPure(wio: WIO.Pure[Ctx, In, Err, Out]): Result                                           = None
-    def onDiscarded[In](wio: WIO.Discarded[Ctx, In]): Result                                       = None
-    override def onRecovery[Evt](wio: WIO.Recovery[Ctx, In, Err, Out, Evt]): Result                = None
+    def onExecuted[In1](wio: WIO.Executed[Ctx, Err, Out, In1]): Result                                   = None
+    def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result = None
+    def onNoop(wio: WIO.End[Ctx]): Result                                                                = None
+    def onPure(wio: WIO.Pure[Ctx, In, Err, Out]): Result                                                 = None
+    def onDiscarded[In](wio: WIO.Discarded[Ctx, In]): Result                                             = None
+    override def onRecovery[Evt](wio: WIO.Recovery[Ctx, In, Err, Out, Evt]): Result                      = None
 
-    def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result = wio.buildIO(input).map(wio.evtHandler.convert).map(_.asRight).some
+    def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result = {
+      val E = wio.effect
+      E.toIO(E.map(E.map(wio.buildIO(input))(wio.evtHandler.convert))(_.asRight)).some
+    }
 
     def onFlatMap[Out1 <: WCState[Ctx], Err1 <: Err](wio: WIO.FlatMap[Ctx, Err1, Err, Out1, Out, In]): Result          = recurse(wio.base, input)
     def onTransform[In1, Out1 <: State, Err1](wio: WIO.Transform[Ctx, In1, Err1, Out1, In, Out, Err]): Result          =
@@ -109,26 +112,29 @@ object RunIOEvaluator {
       wio.elements.collectFirstSome(elem => recurse(elem.wio, input))
     }
 
-    override def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): Result = {
+    override def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): Result = {
       wio.base.asExecuted match {
         case Some(executedBase) =>
           executedBase.output match {
             case Left(_)        => None
-            case Right(baseOut) => wio.genEvent(input, baseOut).map(wio.eventHandler.convert).map(_.asRight).some
+            case Right(baseOut) =>
+              val E = wio.effect
+              E.toIO(E.map(E.map(wio.genEvent(input, baseOut))(wio.eventHandler.convert))(_.asRight)).some
           }
         case None               => recurse(wio.base, input)
       }
     }
 
-    override def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): Option[IO[Either[Instant, WCEvent[Ctx]]]] = {
+    override def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): Option[IO[Either[Instant, WCEvent[Ctx]]]] = {
+      val E = wio.effect
       recurse(wio.base, input).map(
         _.handleErrorWith(err =>
-          wio
-            .onError(err, lastSeenState, now)
-            .flatMap({
-              case Some(retryTime) => retryTime.asLeft.pure[IO]
-              case None            => IO.raiseError(err)
-            }),
+          E.toIO(
+            E.flatMap(wio.onError(err, lastSeenState, now))({
+              case Some(retryTime) => E.pure(retryTime.asLeft)
+              case None            => E.raiseError(err)
+            })
+          )
         ),
       )
     }

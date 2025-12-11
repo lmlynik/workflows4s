@@ -1,7 +1,7 @@
 package workflows4s.wio
 
-import cats.effect.IO
 import cats.syntax.all.*
+import workflows4s.effect.Effect
 import workflows4s.wio.internal.{EventHandler, ExecutionProgressEvaluator}
 import workflows4s.wio.model.WIOExecutionProgress
 
@@ -40,18 +40,18 @@ trait WIOMethods[Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx]] { self
   @targetName("andThenOp")
   def >>>[Err1 >: Err, Out1 <: WCState[Ctx]](next: WIO[Out, Err1, Out1, Ctx]): WIO[In, Err1, Out1, Ctx] = andThen(next)
 
-  def interruptWith[Out1 >: Out <: WCState[Ctx], Err1 >: Err, In1 <: In](
-      interruption: WIO.Interruption[Ctx, Err1, Out1],
+  def interruptWith[F[_], Out1 >: Out <: WCState[Ctx], Err1 >: Err, In1 <: In](
+      interruption: WIO.Interruption[Ctx, F, Err1, Out1],
   ): WIO.HandleInterruption[Ctx, In1, Err1, Out1] =
     WIO.HandleInterruption(this, interruption.handler, WIO.HandleInterruption.InterruptionStatus.Pending, interruption.tpe)
 
-  def checkpointed[Evt <: WCEvent[Ctx], In1 <: In, Out1 >: Out <: WCState[Ctx]](
+  def checkpointed[F[_], Evt <: WCEvent[Ctx], In1 <: In, Out1 >: Out <: WCState[Ctx]](
       genEvent: (In1, Out1) => Evt,
       handleEvent: (In1, Evt) => Out1,
-  )(using evtCt: ClassTag[Evt]): WIO[In1, Err, Out1, Ctx] = {
+  )(using evtCt: ClassTag[Evt], E: Effect[F]): WIO[In1, Err, Out1, Ctx] = {
     WIO.Checkpoint(
       this,
-      (a: In1, b: Out1) => genEvent(a, b).pure[IO],
+      (a: In1, b: Out1) => E.pure(genEvent(a, b)),
       EventHandler[WCEvent[Ctx], In1, Out1, Evt](evtCt.unapply, identity, handleEvent),
     )
   }
@@ -64,10 +64,10 @@ trait WIOMethods[Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx]] { self
   }
 
   type Now = Instant
-  def retry(onError: (Throwable, WCState[Ctx], Now) => IO[Option[Instant]]): WIO[In, Err, Out, Ctx] = WIO.Retry(this, onError)
-  def retryIn(onError: PartialFunction[Throwable, Duration]): WIO[In, Err, Out, Ctx]                = {
-    val adapted: (Throwable, WCState[Ctx], Now) => IO[Option[Instant]] = (err, _, now) => {
-      onError.lift(err).map(d => now.plus(d)).pure[IO]
+  def retry[F[_]](onError: (Throwable, WCState[Ctx], Now) => F[Option[Instant]])(using Effect[F]): WIO[In, Err, Out, Ctx] = WIO.Retry(this, onError)
+  def retryIn[F[_]](onError: PartialFunction[Throwable, Duration])(using E: Effect[F]): WIO[In, Err, Out, Ctx] = {
+    val adapted: (Throwable, WCState[Ctx], Now) => F[Option[Instant]] = (err, _, now) => {
+      E.pure(onError.lift(err).map(d => now.plus(d)))
     }
     WIO.Retry(this, adapted)
   }

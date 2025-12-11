@@ -4,6 +4,7 @@ lazy val `workflows4s` = (project in file("."))
   .settings(commonSettings)
   .aggregate(
     `workflows4s-core`,
+    `workflows4s-cats-effect`,
     `workflows4s-bpmn`,
     `workflows4s-pekko`,
     `workflows4s-example`,
@@ -31,6 +32,16 @@ lazy val `workflows4s-core` = (project in file("workflows4s-core"))
     ),
     Test / parallelExecution := false,
   )
+
+lazy val `workflows4s-cats-effect` = (project in file("workflows4s-cats-effect"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect" % "3.6.3",
+      "co.fs2"        %% "fs2-core"    % "3.12.2",
+    ),
+  )
+  .dependsOn(`workflows4s-core` % "compile->compile;test->test")
 
 lazy val `workflows4s-bpmn` = (project in file("workflows4s-bpmn"))
   .settings(commonSettings)

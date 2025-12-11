@@ -5,19 +5,26 @@ import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cats.effect.unsafe.implicits.global
 import com.typesafe.scalalogging.StrictLogging
+import workflows4s.effect.CatsEffect.given
 import workflows4s.runtime.*
-import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
+import workflows4s.runtime.instanceengine.{IOWorkflowInstanceEngineBuilder, WorkflowInstanceEngine}
 import workflows4s.runtime.registry.InMemoryWorkflowRegistry
 import workflows4s.wio.*
 
 // Adapt various runtimes to a single interface for tests
 trait TestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
-  protected val knockerUpper             = RecordingKnockerUpper()
+  protected val knockerUpper             = RecordingKnockerUpper[IO]()
   val clock: TestClock                   = TestClock()
   val registry: InMemoryWorkflowRegistry = InMemoryWorkflowRegistry(clock).unsafeRunSync()
 
-  val engine: WorkflowInstanceEngine = WorkflowInstanceEngine.default(knockerUpper, registry, clock)
+  val engine: WorkflowInstanceEngine[IO] = IOWorkflowInstanceEngineBuilder
+    .withJavaTimeIO(clock)
+    .withWakeUps(knockerUpper)
+    .withRegistering(registry)
+    .withGreedyEvaluation
+    .withLogging
+    .get
 
   type Actor <: WorkflowInstance[Id, WCState[Ctx]]
 

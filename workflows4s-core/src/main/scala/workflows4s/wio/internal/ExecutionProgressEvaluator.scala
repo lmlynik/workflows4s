@@ -23,11 +23,11 @@ object ExecutionProgressEvaluator {
   ) extends Visitor[Ctx, In, Err, Out](wio) {
     override type Result = WIOExecutionProgress[WCState[Ctx]]
 
-    def onSignal[Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, In, Out, Err, Sig, Resp, Evt]): Result                     = {
+    def onSignal[F[_], Sig, Evt, Resp](wio: WIO.HandleSignal[Ctx, F, In, Out, Err, Sig, Resp, Evt]): Result           = {
       val meta = WIOMeta.HandleSignal(wio.meta.signalName, wio.meta.operationName, wio.meta.error.toModel)
       WIOExecutionProgress.HandleSignal(meta, result)
     }
-    def onRunIO[Evt](wio: WIO.RunIO[Ctx, In, Err, Out, Evt]): Result                                                   = {
+    def onRunIO[F[_], Evt](wio: WIO.RunIO[Ctx, F, In, Err, Out, Evt]): Result                                         = {
       val meta = WIOMeta.RunIO(wio.meta.name, wio.meta.error.toModel, wio.meta.description)
       WIOExecutionProgress.RunIO(meta, result)
     }
@@ -130,14 +130,14 @@ object ExecutionProgressEvaluator {
     }
     def onDiscarded[In](wio: WIO.Discarded[Ctx, In]): Result             = recurse(wio.original, wio.input.some, None)
 
-    override def onRetry(wio: WIO.Retry[Ctx, In, Err, Out]): WIOExecutionProgress[WCState[Ctx]] =
+    override def onRetry[F[_]](wio: WIO.Retry[Ctx, F, In, Err, Out]): WIOExecutionProgress[WCState[Ctx]] =
       WIOExecutionProgress.Retried(recurse(wio.base, input))
 
     def onParallel[InterimState <: workflows4s.wio.WorkflowContext.State[Ctx]](wio: WIO.Parallel[Ctx, In, Err, Out, InterimState]): Result = {
       WIOExecutionProgress.Parallel(wio.elements.map(elem => recurse(elem.wio, input, result = None)), result)
     }
 
-    override def onCheckpoint[Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, In, Err, Out1, Evt]): WIOExecutionProgress[WCState[Ctx]] = {
+    override def onCheckpoint[F[_], Evt, Out1 <: Out](wio: WIO.Checkpoint[Ctx, F, In, Err, Out1, Evt]): WIOExecutionProgress[WCState[Ctx]] = {
       WIOExecutionProgress.Checkpoint(recurse(wio.base, input, result = None), result)
     }
 

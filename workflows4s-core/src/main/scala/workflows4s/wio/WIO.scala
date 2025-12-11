@@ -1,7 +1,7 @@
 package workflows4s.wio
 
-import cats.effect.IO
 import cats.implicits.catsSyntaxOptionId
+import workflows4s.effect.Effect
 import workflows4s.wio.WIO.HandleInterruption.InterruptionType
 import workflows4s.wio.WIO.Timer.DurationSource
 import workflows4s.wio.builders.AllBuilders
@@ -21,16 +21,16 @@ object WIO {
   // Experimental approach top exposing concrete subtypes.
   // We dont want to expose concrete impls because they have way too much type params.
   // Alternatively, this could be a sealed trait extending WIO
-  type IHandleSignal[-In, +Err, +Out <: WCState[Ctx], Ctx <: WorkflowContext] = HandleSignal[Ctx, In, Out, Err, ?, ?, ?]
+  type IHandleSignal[-In, +Err, +Out <: WCState[Ctx], Ctx <: WorkflowContext] = HandleSignal[Ctx, ?, In, Out, Err, ?, ?, ?]
 
-  case class HandleSignal[Ctx <: WorkflowContext, -In, +Out <: WCState[Ctx], +Err, Sig, Resp, Evt](
+  case class HandleSignal[Ctx <: WorkflowContext, F[_], -In, +Out <: WCState[Ctx], +Err, Sig, Resp, Evt](
       sigDef: SignalDef[Sig, Resp],
-      sigHandler: SignalHandler[Sig, Evt, In],
+      sigHandler: SignalHandler[F, Sig, Evt, In],
       evtHandler: EventHandler[In, (Either[Err, Out], Resp), WCEvent[Ctx], Evt],
       meta: HandleSignal.Meta, // TODO here and everywhere else, we could use WIOMeta directly
-  ) extends WIO[In, Err, Out, Ctx] {
+  )(using val effect: Effect[F]) extends WIO[In, Err, Out, Ctx] {
 
-    def toInterruption(using ev: WCState[Ctx] <:< In): Interruption[Ctx, Err, Out] =
+    def toInterruption(using ev: WCState[Ctx] <:< In): Interruption[Ctx, F, Err, Out] =
       WIO.Interruption(ev.substituteContra[[t] =>> WIO[t, Err, Out, Ctx]](this), InterruptionType.Signal)
   }
 
@@ -38,11 +38,11 @@ object WIO {
     case class Meta(error: ErrorMeta[?], signalName: String, operationName: Option[String])
   }
 
-  case class RunIO[Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx], Evt](
-      buildIO: In => IO[Evt],
+  case class RunIO[Ctx <: WorkflowContext, F[_], -In, +Err, +Out <: WCState[Ctx], Evt](
+      buildIO: In => F[Evt],
       evtHandler: EventHandler[In, Either[Err, Out], WCEvent[Ctx], Evt],
       meta: RunIO.Meta,
-  ) extends WIO[In, Err, Out, Ctx]
+  )(using val effect: Effect[F]) extends WIO[In, Err, Out, Ctx]
 
   object RunIO {
     case class Meta(error: ErrorMeta[?], name: Option[String], description: Option[String])
@@ -166,7 +166,7 @@ object WIO {
       releaseTime
     }
 
-    def toInterruption(using ev: WCState[Ctx] <:< In): Interruption[Ctx, Err, Out] =
+    def toInterruption[F[_]](using ev: WCState[Ctx] <:< In): Interruption[Ctx, F, Err, Out] =
       WIO.Interruption(ev.substituteContra[[t] =>> WIO[t, Err, Out, Ctx]](this), InterruptionType.Timer)
   }
 
@@ -201,10 +201,10 @@ object WIO {
     )
   }
 
-  case class Retry[Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx]](
+  case class Retry[Ctx <: WorkflowContext, F[_], -In, +Err, +Out <: WCState[Ctx]](
       base: WIO[In, Err, Out, Ctx],
-      onError: (Throwable, WCState[Ctx], Instant) => IO[Option[Instant]],
-  ) extends WIO[In, Err, Out, Ctx]
+      onError: (Throwable, WCState[Ctx], Instant) => F[Option[Instant]],
+  )(using val effect: Effect[F]) extends WIO[In, Err, Out, Ctx]
 
   case class Executed[Ctx <: WorkflowContext, +Err, +Out <: WCState[Ctx], In](
       original: WIO[In, ?, ?, Ctx],
@@ -220,23 +220,23 @@ object WIO {
 
   case class Discarded[Ctx <: WorkflowContext, In](original: WIO[In, ?, ?, Ctx], input: In) extends WIO[Any, Nothing, Nothing, Ctx]
 
-  case class Interruption[Ctx <: WorkflowContext, +Err, +Out <: WCState[Ctx]](
+  case class Interruption[Ctx <: WorkflowContext, F[_], +Err, +Out <: WCState[Ctx]](
       handler: WIO[WCState[Ctx], Err, Out, Ctx],
       tpe: HandleInterruption.InterruptionType,
   ) {
     def andThen[FinalErr, FinalOut <: WCState[Ctx]](
         f: WIO[WCState[Ctx], Err, Out, Ctx] => WIO[WCState[Ctx], FinalErr, FinalOut, Ctx],
-    ): WIO.Interruption[Ctx, FinalErr, FinalOut] = {
+    ): WIO.Interruption[Ctx, F, FinalErr, FinalOut] = {
       WIO.Interruption(f(handler), tpe)
     }
   }
 
   // This could also allow for raising errors.
-  case class Checkpoint[Ctx <: WorkflowContext, -In, +Err, Out <: WCState[Ctx], Evt](
+  case class Checkpoint[Ctx <: WorkflowContext, F[_], -In, +Err, Out <: WCState[Ctx], Evt](
       base: WIO[In, Err, Out, Ctx],
-      genEvent: (In, Out) => IO[Evt],
+      genEvent: (In, Out) => F[Evt],
       eventHandler: EventHandler[In, Out, WCEvent[Ctx], Evt],
-  ) extends WIO[In, Err, Out, Ctx]
+  )(using val effect: Effect[F]) extends WIO[In, Err, Out, Ctx]
 
   // This could also allow for optionality (do X if event is present,
   // do Y otherwise), but the implementation might be a bit convoluted, hence left for later.
@@ -278,7 +278,7 @@ object WIO {
 
   // -----
 
-  def build[Ctx <: WorkflowContext]: AllBuilders[Ctx] = new AllBuilders[Ctx] {}
+  def build[Ctx <: WorkflowContext, F[_]](using Effect[F]): AllBuilders[Ctx, F] = new AllBuilders[Ctx, F] {}
 
   case class Branch[-In, +Err, +Out <: WCState[Ctx], Ctx <: WorkflowContext, BranchIn](
       condition: In => Option[BranchIn],

@@ -37,6 +37,14 @@ trait Effect[F[_]] {
     */
   def liftIO[A](io: IO[A]): F[A]
 
+  /** Convert this effect type to cats.effect.IO.
+    *
+    * This is the reverse of liftIO and is needed for evaluators that work with IO internally.
+    * For IO itself, this is identity. For other effects like ZIO, this typically involves
+    * unsafe conversion.
+    */
+  def toIO[A](fa: F[A]): IO[A]
+
   // Derived operations with default implementations
   def void[A](fa: F[A]): F[Unit] = map(fa)(_ => ())
 
