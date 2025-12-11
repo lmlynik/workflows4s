@@ -1,6 +1,7 @@
 package workflows4s.example.docs.pekko
 
 import scala.concurrent.Future
+import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import org.apache.pekko.actor.typed.ActorSystem
 import workflows4s.runtime.WorkflowInstance
@@ -14,14 +15,15 @@ object PekkoExample {
     sealed trait State
     case class InitialState() extends State
     sealed trait Event
+    type F[A] = cats.effect.IO[A]
   }
 
   // doc_start
   import MyWorkflowCtx.*
-  given IORuntime                    = ???
-  given ActorSystem[?]               = ???
-  val engine: WorkflowInstanceEngine = ???
-  val workflow: WIO.Initial          = ???
+  given IORuntime                        = ???
+  given ActorSystem[?]                   = ???
+  val engine: WorkflowInstanceEngine[IO] = ???
+  val workflow: WIO.Initial              = ???
 
   val runtime: PekkoRuntime[Ctx] = PekkoRuntime.create("my-workflow", workflow, InitialState(), engine)
 

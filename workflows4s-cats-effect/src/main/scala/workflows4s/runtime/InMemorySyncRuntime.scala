@@ -1,7 +1,6 @@
 package workflows4s.runtime
 
 import cats.Id
-import cats.effect.unsafe.IORuntime
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
 import workflows4s.wio.*
 import workflows4s.wio.WIO.Initial
@@ -9,10 +8,9 @@ import workflows4s.wio.WIO.Initial
 class InMemorySyncRuntime[Ctx <: WorkflowContext](
     val workflow: Initial[Ctx],
     initialState: WCState[Ctx],
-    engine: WorkflowInstanceEngine,
+    engine: WorkflowInstanceEngine[Id],
     val templateId: String,
-)(using IORuntime)
-    extends WorkflowRuntime[Id, Ctx] {
+) extends WorkflowRuntime[Id, Ctx] {
   val instances = new java.util.concurrent.ConcurrentHashMap[String, InMemorySyncWorkflowInstance[Ctx]]()
 
   override def createInstance(id: String): InMemorySyncWorkflowInstance[Ctx] = {
@@ -31,8 +29,8 @@ object InMemorySyncRuntime {
   def create[Ctx <: WorkflowContext](
       workflow: Initial[Ctx],
       initialState: WCState[Ctx],
-      engine: WorkflowInstanceEngine,
+      engine: WorkflowInstanceEngine[Id],
       templateId: String = s"in-memory-sync-runtime-${java.util.UUID.randomUUID().toString.take(8)}",
   ): InMemorySyncRuntime[Ctx] =
-    new InMemorySyncRuntime[Ctx](workflow, initialState, engine, templateId)(using IORuntime.global)
+    new InMemorySyncRuntime[Ctx](workflow, initialState, engine, templateId)
 }

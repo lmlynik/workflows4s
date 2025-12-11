@@ -1,9 +1,8 @@
 package workflows4s.runtime
 
-import cats.effect.unsafe.IORuntime
-import cats.effect.{IO, LiftIO}
-import cats.{Id, Monad}
+import cats.Id
 import com.typesafe.scalalogging.StrictLogging
+import workflows4s.effect.Effect
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
 import workflows4s.wio.*
 
@@ -14,10 +13,12 @@ import scala.util.chaining.scalaUtilChainingOps
 class InMemorySyncWorkflowInstance[Ctx <: WorkflowContext](
     val id: WorkflowInstanceId,
     initialState: ActiveWorkflow[Ctx],
-    protected val engine: WorkflowInstanceEngine,
-)(implicit IORuntime: IORuntime)
-    extends WorkflowInstanceBase[Id, Ctx]
+    protected val engine: WorkflowInstanceEngine[Id],
+) extends WorkflowInstanceBase[Id, Id, Ctx]
     with StrictLogging {
+
+  override protected given E: Effect[Id]       = Effect.idEffect
+  override protected given EngineE: Effect[Id] = Effect.idEffect
 
   private var wf: ActiveWorkflow[Ctx]              = initialState
   private val events: mutable.Buffer[WCEvent[Ctx]] = ListBuffer[WCEvent[Ctx]]()
@@ -25,10 +26,8 @@ class InMemorySyncWorkflowInstance[Ctx <: WorkflowContext](
 
   def recover(events: Seq[WCEvent[Ctx]]): Unit = super.recover(wf, events).pipe(updateState(_, events))
 
-  override protected def liftIO: cats.effect.LiftIO[Id]                   = new LiftIO[Id] {
-    override def liftIO[A](ioa: IO[A]): Id[A] = ioa.unsafeRunSync()
-  }
-  override protected def fMonad: Monad[Id]                                = cats.Invariant.catsInstancesForId
+  override protected def liftEngineEffect[A](fa: Id[A]): Id[A] = fa
+
   override protected def getWorkflow: workflows4s.wio.ActiveWorkflow[Ctx] = wf
 
   private val lock = new Object

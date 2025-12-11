@@ -17,17 +17,18 @@ object DatabaseExample {
     sealed trait State
     case class InitialState() extends State
     sealed trait Event
+    type F[A] = cats.effect.IO[A]
   }
 
   import MyWorkflowCtx.*
   {
     // doc_start
-    val workflow: WIO.Initial           = ???
-    val initialState: State             = ???
-    val transactor: Transactor[IO]      = ???
-    val storage: WorkflowStorage[Event] = ???
-    val engine: WorkflowInstanceEngine  = ???
-    val templateId                      = "my-workflow"
+    val workflow: WIO.Initial              = ???
+    val initialState: State                = ???
+    val transactor: Transactor[IO]         = ???
+    val storage: WorkflowStorage[Event]    = ???
+    val engine: WorkflowInstanceEngine[IO] = ???
+    val templateId                         = "my-workflow"
 
     val runtime: DatabaseRuntime[Ctx]                      = DatabaseRuntime.create(workflow, initialState, transactor, engine, storage, templateId)
     val wfInstance: IO[WorkflowInstance[IO, WCState[Ctx]]] = runtime.createInstance("1")

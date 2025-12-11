@@ -1,18 +1,21 @@
 package workflows4s.runtime
 
-import cats.Monad
 import cats.effect.std.{AtomicCell, Semaphore}
-import cats.effect.{IO, LiftIO, Ref, Resource}
+import cats.effect.{IO, Resource}
+import workflows4s.effect.Effect
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
 import workflows4s.wio.*
 
 class InMemoryWorkflowInstance[Ctx <: WorkflowContext](
     val id: WorkflowInstanceId,
     stateCell: AtomicCell[IO, ActiveWorkflow[Ctx]],
-    eventsRef: Ref[IO, Vector[WCEvent[Ctx]]],
-    protected val engine: WorkflowInstanceEngine,
+    eventsRef: cats.effect.Ref[IO, Vector[WCEvent[Ctx]]],
+    protected val engine: WorkflowInstanceEngine[IO],
     val lock: Semaphore[IO],
-) extends WorkflowInstanceBase[IO, Ctx] {
+) extends WorkflowInstanceBase[IO, IO, Ctx] {
+
+  override protected given E: Effect[IO]       = workflows4s.catseffect.CatsEffect.ioEffect
+  override protected given EngineE: Effect[IO] = workflows4s.catseffect.CatsEffect.ioEffect
 
   def getEvents: IO[Vector[WCEvent[Ctx]]] = eventsRef.get
 
@@ -24,8 +27,7 @@ class InMemoryWorkflowInstance[Ctx <: WorkflowContext](
       } yield newState -> ()
     }
 
-  override protected def fMonad: Monad[IO]  = summon
-  override protected def liftIO: LiftIO[IO] = summon
+  override protected def liftEngineEffect[A](fa: IO[A]): IO[A] = fa
 
   override protected def getWorkflow: IO[ActiveWorkflow[Ctx]] = stateCell.get
 
