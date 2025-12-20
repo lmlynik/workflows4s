@@ -4,7 +4,10 @@ lazy val `workflows4s` = (project in file("."))
   .settings(commonSettings)
   .aggregate(
     `workflows4s-core`,
+    `workflows4s-testing`,
     `workflows4s-cats`,
+    `workflows4s-zio`,
+    `workflows4s-ox`,
     `workflows4s-bpmn`,
     `workflows4s-pekko`,
     `workflows4s-example`,
@@ -33,6 +36,15 @@ lazy val `workflows4s-core` = (project in file("workflows4s-core"))
     Test / parallelExecution := false,
   )
 
+lazy val `workflows4s-testing` = (project in file("workflows4s-testing"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6",
+    ),
+  )
+  .dependsOn(`workflows4s-core` % "compile->compile;test->test")
+
 lazy val `workflows4s-cats` = (project in file("workflows4s-cats"))
   .settings(commonSettings)
   .settings(
@@ -40,7 +52,34 @@ lazy val `workflows4s-cats` = (project in file("workflows4s-cats"))
       "org.typelevel" %% "cats-effect" % "3.6.3",
     ),
   )
-  .dependsOn(`workflows4s-core` % "compile->compile;test->test")
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
+
+lazy val `workflows4s-zio` = (project in file("workflows4s-zio"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio" % zioVersion,
+    ),
+  )
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
+
+lazy val `workflows4s-ox` = (project in file("workflows4s-ox"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.softwaremill.ox" %% "core" % oxVersion,
+    ),
+  )
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
 
 lazy val `workflows4s-bpmn` = (project in file("workflows4s-bpmn"))
   .settings(commonSettings)
@@ -251,6 +290,8 @@ lazy val pekkoHttpVersion           = "1.3.0"
 lazy val testcontainersScalaVersion = "0.43.6"
 lazy val tapirVersion               = "1.12.3"
 lazy val circeVersion               = "0.14.15"
+lazy val zioVersion                 = "2.1.14"
+lazy val oxVersion                  = "0.5.3"
 
 addCommandAlias("prePR", List("compile", "Test / compile", "test", "scalafmtCheckAll").mkString(";", ";", ""))
 

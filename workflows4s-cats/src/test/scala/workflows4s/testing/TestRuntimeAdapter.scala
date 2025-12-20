@@ -12,11 +12,11 @@ import workflows4s.wio.*
 
 // Adapt various runtimes to a single interface for tests
 // Works with workflows that use the context's effect type (typically IO or Id)
-trait TestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
+trait CatsTestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
-  protected val knockerUpper                 = RecordingKnockerUpper()
-  val clock: TestClock                       = TestClock()
-  val registry: InMemoryWorkflowRegistry[IO] = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
+  protected val knockerUpper: RecordingKnockerUpper[IO] = RecordingKnockerUpper[IO]
+  val clock: TestClock                                  = TestClock()
+  val registry: InMemoryWorkflowRegistry[IO]            = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
 
   val engine: WorkflowInstanceEngine[IO]   = WorkflowInstanceEngine.default(knockerUpper, registry, clock)
   val idEngine: WorkflowInstanceEngine[Id] = {
@@ -24,7 +24,7 @@ trait TestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
     WorkflowInstanceEngine
       .builder[Id]
       .withJavaTime(clock)
-      .withWakeUps(knockerUpper.asId)
+      .withWakeUps(knockerUpper.as[Id])
       .withoutRegistering
       .withGreedyEvaluation
       .withLogging
@@ -52,11 +52,10 @@ trait TestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
 object TestRuntimeAdapter {
 
-  trait EventIntrospection[Event] {
-    def getEvents: Seq[Event]
-  }
+  // Re-export from shared testing module
+  type EventIntrospection[Event] = EffectTestRuntimeAdapter.EventIntrospection[Event]
 
-  case class InMemorySync[Ctx <: WorkflowContext]() extends TestRuntimeAdapter[Ctx] {
+  case class InMemorySync[Ctx <: WorkflowContext]() extends CatsTestRuntimeAdapter[Ctx] {
 
     override def runWorkflow(
         workflow: WIO.Initial[IO, Ctx],
@@ -85,7 +84,7 @@ object TestRuntimeAdapter {
     }
   }
 
-  case class InMemory[Ctx <: WorkflowContext]() extends TestRuntimeAdapter[Ctx] {
+  case class InMemory[Ctx <: WorkflowContext]() extends CatsTestRuntimeAdapter[Ctx] {
 
     override def runWorkflow(
         workflow: WIO.Initial[IO, Ctx],

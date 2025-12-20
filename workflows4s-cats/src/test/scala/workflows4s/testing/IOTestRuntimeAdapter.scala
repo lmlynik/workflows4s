@@ -16,9 +16,9 @@ import scala.concurrent.duration.*
   */
 trait IOTestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
-  protected val knockerUpper                 = RecordingKnockerUpper()
-  val clock: TestClock                       = TestClock()
-  val registry: InMemoryWorkflowRegistry[IO] = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
+  protected val knockerUpper: RecordingKnockerUpper[IO] = RecordingKnockerUpper[IO]
+  val clock: TestClock                                  = TestClock()
+  val registry: InMemoryWorkflowRegistry[IO]            = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
 
   val engine: WorkflowInstanceEngine[IO] = WorkflowInstanceEngine.default(knockerUpper, registry, clock)
 
