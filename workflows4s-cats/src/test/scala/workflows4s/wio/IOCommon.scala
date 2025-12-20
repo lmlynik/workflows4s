@@ -4,19 +4,14 @@ import cats.effect.IO
 import workflows4s.cats.CatsEffect
 import workflows4s.runtime.WorkflowInstanceId
 import workflows4s.runtime.instanceengine.Effect
+import workflows4s.testing.TestWorkflowContext
 
 // IO-based version of TestCtx2 for InMemoryRuntime tests
-object IOTestCtx2 extends WorkflowContext {
-  trait Event
-  case class SimpleEvent(value: String) extends Event
-  type State = TestState
-
-  type Eff[A] = IO[A]
-  given effect: Effect[Eff] = CatsEffect.ioEffect
-}
+object IOTestCtx2 extends TestWorkflowContext[IO](using CatsEffect.ioEffect)
 
 // IO-based context for InMemoryRuntime tests
 object IOTestCtx extends WorkflowContext {
+
   trait Event
   case class SimpleEvent(value: String) extends Event
   type State = String

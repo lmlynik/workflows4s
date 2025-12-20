@@ -1,6 +1,6 @@
 package workflows4s.zio
 
-import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef}
+import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef, UnsafeRun}
 import zio.*
 
 import java.time.Instant
@@ -85,5 +85,13 @@ object ZIOEffect {
             case None    => finalizer(Outcome.Canceled).orDie
           }
       }
+  }
+
+  /** UnsafeRun instance for ZIO Task. Uses the default ZIO runtime for synchronous execution.
+    */
+  given taskUnsafeRun: UnsafeRun[Task] = new UnsafeRun[Task] {
+    def unsafeRunSync[A](fa: Task[A]): A = Unsafe.unsafe { implicit u =>
+      Runtime.default.unsafe.run(fa).getOrThrow()
+    }
   }
 }

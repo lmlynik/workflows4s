@@ -1,6 +1,6 @@
 package workflows4s.ox
 
-import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef}
+import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef, UnsafeRun}
 
 import java.time.Instant
 import java.util.concurrent.Semaphore as JSemaphore
@@ -124,5 +124,11 @@ object OxEffect {
         case Outcome.Canceled     => throw new InterruptedException("Canceled")
       }
     }
+  }
+
+  /** UnsafeRun instance for Direct. Simply runs the computation since Direct is already synchronous.
+    */
+  given directUnsafeRun: UnsafeRun[Direct] = new UnsafeRun[Direct] {
+    def unsafeRunSync[A](fa: Direct[A]): A = fa.run
   }
 }

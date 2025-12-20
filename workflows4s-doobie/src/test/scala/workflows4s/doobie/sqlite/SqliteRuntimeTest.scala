@@ -1,6 +1,7 @@
 package workflows4s.doobie.sqlite
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.doobie.postgres.testing.JavaSerdeEventCodec
 import workflows4s.doobie.sqlite.testing.{SqliteRuntimeAdapter, SqliteWorkdirSuite}
@@ -19,9 +20,9 @@ class SqliteRuntimeTest extends AnyFreeSpec with SqliteWorkdirSuite {
         .done
 
       val actor = adapter.runWorkflow(wio.provideInput("initial"), "initial")
-      actor.wakeup()
+      actor.wakeup().unsafeRunSync()
 
-      assert(actor.queryState() == "done")
+      assert(actor.queryState().unsafeRunSync() == "done")
     }
   }
 

@@ -3,7 +3,8 @@ package workflows4s.cats
 import cats.effect.IO
 import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
-import workflows4s.runtime.instanceengine.{Effect, Fiber, Outcome, Ref}
+import cats.effect.unsafe.IORuntime
+import workflows4s.runtime.instanceengine.{Effect, Fiber, Outcome, Ref, UnsafeRun}
 
 object CatsEffect {
 
@@ -54,5 +55,11 @@ object CatsEffect {
         case cats.effect.kernel.Outcome.Canceled()    => finalizer(Outcome.Canceled)
       }
     }
+  }
+
+  /** UnsafeRun instance for cats.effect.IO. Requires an IORuntime to execute.
+    */
+  given ioUnsafeRun(using runtime: IORuntime): UnsafeRun[IO] = new UnsafeRun[IO] {
+    def unsafeRunSync[A](fa: IO[A]): A = fa.unsafeRunSync()
   }
 }
