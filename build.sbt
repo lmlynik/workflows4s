@@ -135,7 +135,10 @@ lazy val `workflows4s-quartz` = (project in file("workflows4s-quartz"))
       "org.quartz-scheduler" % "quartz" % "2.5.1",
     ),
   )
-  .dependsOn(`workflows4s-cats` % "compile->compile;test->test")
+  .dependsOn(
+    `workflows4s-core` % "compile->compile;test->test",
+    `workflows4s-cats` % "test->test",
+  )
 
 lazy val `workflows4s-web-api-shared` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
