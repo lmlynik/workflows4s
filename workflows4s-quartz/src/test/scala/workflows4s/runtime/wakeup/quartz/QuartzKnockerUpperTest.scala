@@ -1,7 +1,6 @@
 package workflows4s.runtime.wakeup.quartz
 
 import cats.effect.IO
-import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
 import com.typesafe.scalalogging.StrictLogging
 import org.quartz.Scheduler
@@ -11,19 +10,18 @@ import org.scalatest.concurrent.Eventually.{PatienceConfig, eventually}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Seconds, Span}
+import workflows4s.cats.CatsEffect.given
 import workflows4s.testing.TestUtils
 
 import java.time.Instant
 
 class QuartzKnockerUpperTest extends AnyFreeSpec with Matchers with BeforeAndAfterAll with StrictLogging {
 
-  val (dispatcher, releaseDispatcher) = Dispatcher.parallel[IO].allocated.unsafeRunSync()
-
   "QuartzKnockerUpper" - {
 
     "should schedule a wakeup at a specified time" in withQuartzKnockerUpper { knockerUpper =>
-      var wokenUpAt: Instant                = null
-      val testId                            = TestUtils.randomWfId()
+      var wokenUpAt: Instant         = null
+      val testId                     = TestUtils.randomWfId()
       knockerUpper
         .initialize(id =>
           IO {
@@ -34,10 +32,10 @@ class QuartzKnockerUpperTest extends AnyFreeSpec with Matchers with BeforeAndAft
           },
         )
         .unsafeRunSync()
-      val wakeupAt                          = Instant.now().plusMillis(100) // Using a shorter delay since tests show it's sufficient
+      val wakeupAt                   = Instant.now().plusMillis(100) // Using a shorter delay since tests show it's sufficient
       logger.info(s"Scheduling wakeup at $wakeupAt")
       knockerUpper.updateWakeup(testId, Some(wakeupAt)).unsafeRunSync()
-      implicit val patience: PatienceConfig = PatienceConfig(
+      given patience: PatienceConfig = PatienceConfig(
         timeout = Span(2, Seconds), // Reduced timeout but still sufficient
         interval = Span(50, Millis),
       )
@@ -87,12 +85,6 @@ class QuartzKnockerUpperTest extends AnyFreeSpec with Matchers with BeforeAndAft
     }
   }
 
-  def withDispatcher(testCode: Dispatcher[IO] => Any) = {
-    val (dispatcher, releaseDispatcher) = Dispatcher.parallel[IO].allocated.unsafeRunSync()
-    try testCode(dispatcher)
-    finally releaseDispatcher.unsafeRunSync()
-  }
-
   def withQuartzScheduler(testCode: Scheduler => Any) = {
     val scheduler = StdSchedulerFactory.getDefaultScheduler
     scheduler.start()
@@ -101,11 +93,9 @@ class QuartzKnockerUpperTest extends AnyFreeSpec with Matchers with BeforeAndAft
     } finally scheduler.shutdown()
   }
 
-  def withQuartzKnockerUpper(testCode: QuartzKnockerUpper => Any) = {
-    withDispatcher(dispatcher => {
-      withQuartzScheduler(scheduler => {
-        testCode(new QuartzKnockerUpper(scheduler, dispatcher))
-      })
+  def withQuartzKnockerUpper(testCode: QuartzKnockerUpper[IO] => Any) = {
+    withQuartzScheduler(scheduler => {
+      testCode(new QuartzKnockerUpper[IO](scheduler))
     })
   }
 

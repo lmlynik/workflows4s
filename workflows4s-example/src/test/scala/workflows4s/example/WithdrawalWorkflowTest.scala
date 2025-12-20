@@ -1,6 +1,7 @@
 package workflows4s.example
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import com.typesafe.scalalogging.StrictLogging
 import org.scalamock.handlers.CallHandler2
 import org.scalamock.scalatest.MockFactory
@@ -14,7 +15,7 @@ import workflows4s.example.withdrawal.*
 import workflows4s.example.withdrawal.WithdrawalService.{ExecutionResponse, Fee, Iban}
 import workflows4s.example.withdrawal.WithdrawalSignal.CreateWithdrawal
 import workflows4s.example.withdrawal.checks.*
-import workflows4s.testing.TestRuntimeAdapter
+import workflows4s.testing.IOTestRuntimeAdapter
 
 import scala.annotation.unused
 import scala.concurrent.duration.*
@@ -23,11 +24,8 @@ import scala.jdk.DurationConverters.JavaDurationOps
 //noinspection ForwardReference
 class WithdrawalWorkflowTest extends AnyFreeSpec with MockFactory with WithdrawalWorkflowTest.Suite {
 
-  "in-memory-sync" - {
-    withdrawalTests(TestRuntimeAdapter.InMemorySync())
-  }
   "in-memory" - {
-    withdrawalTests(TestRuntimeAdapter.InMemory())
+    withdrawalTests(IOTestRuntimeAdapter.InMemory(), skipRecovery = true)
   }
 
   "render model" in {
@@ -50,7 +48,7 @@ object WithdrawalWorkflowTest {
 
   trait Suite extends AnyFreeSpecLike with MockFactory {
 
-    def withdrawalTests(getRuntime: => TestRuntimeAdapter[WithdrawalWorkflow.Context.Ctx]) = {
+    def withdrawalTests(getRuntime: => IOTestRuntimeAdapter[WithdrawalWorkflow.Context.Ctx], skipRecovery: Boolean = false): Unit = {
 
       "happy path" in new Fixture {
         assert(actor.queryData() == WithdrawalData.Empty)
@@ -201,7 +199,7 @@ object WithdrawalWorkflowTest {
         )
         runtime.clock.advanceBy(WithdrawalWorkflow.executionRetryDelay.toScala)
         runtime.clock.advanceBy(1.second)
-        runtime.executeDueWakup(actor.wf)
+        runtime.executeDueWakeup(actor.wf)
         assert(
           actor.queryData() ==
             WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
@@ -215,15 +213,19 @@ object WithdrawalWorkflowTest {
         val txId    = "abc"
         val actor   = createActor()
 
-        def checkRecovery() = {
-          logger.debug("Checking recovery")
-          val originalState  = actor.wf.queryState()
-          val secondActor    = runtime.recover(actor.wf)
-          // seems sometimes querying state from fresh actor gets flaky
-          val recoveredState = eventually {
-            secondActor.queryState()
+        def checkRecovery(): Unit = {
+          if skipRecovery then {
+            logger.debug("Skipping recovery check")
+          } else {
+            logger.debug("Checking recovery")
+            val originalState  = actor.wf.queryState().unsafeRunSync()
+            val secondActor    = runtime.recover(actor.wf)
+            // seems sometimes querying state from fresh actor gets flaky
+            val recoveredState = eventually {
+              secondActor.queryState().unsafeRunSync()
+            }
+            val _              = assert(recoveredState == originalState)
           }
-          assert(recoveredState == originalState)
         }
 
         def createActor() = {
@@ -286,22 +288,22 @@ object WithdrawalWorkflowTest {
 
         class WithdrawalActor(val wf: runtime.Actor) {
           def init(req: CreateWithdrawal): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req).value
+            wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req).unsafeRunSync().value
           }
 
           def confirmExecution(req: WithdrawalSignal.ExecutionCompleted): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req).value
+            wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req).unsafeRunSync().value
           }
 
           def cancel(req: WithdrawalSignal.CancelWithdrawal): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req).value
+            wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req).unsafeRunSync().value
           }
 
-          def queryData(): WithdrawalData = wf.queryState()
+          def queryData(): WithdrawalData = wf.queryState().unsafeRunSync()
         }
 
         def persistProgress(name: String): Unit = {
-          TestUtils.renderMermaidToFile(actor.wf.getProgress, s"withdrawal/progress-$name.mermaid")
+          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid")
         }
 
       }

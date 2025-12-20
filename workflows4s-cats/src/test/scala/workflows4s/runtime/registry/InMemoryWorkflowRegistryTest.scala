@@ -1,9 +1,12 @@
 package workflows4s.runtime.registry
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
+import workflows4s.cats.CatsEffect.given
 import workflows4s.runtime.WorkflowInstanceId
+import workflows4s.runtime.instanceengine.Effect
 import workflows4s.runtime.registry.WorkflowRegistry.ExecutionStatus
 import workflows4s.testing.{TestClock, TestUtils}
 import workflows4s.wio.{ActiveWorkflow, WIO, WorkflowContext}
@@ -15,7 +18,7 @@ class InMemoryWorkflowRegistryTest extends AnyFreeSpec with Matchers {
   "InMemoryWorkflowRegistry" - {
     "should store and retrieve workflow instances" in {
       val clock    = TestClock()
-      val registry = InMemoryWorkflowRegistry(clock).unsafeRunSync()
+      val registry = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
 
       val List(id1, id2, id3) = List.fill(3)(TestUtils.randomWfId())
 
@@ -37,7 +40,7 @@ class InMemoryWorkflowRegistryTest extends AnyFreeSpec with Matchers {
 
     "should update existing workflow instances" in {
       val clock    = TestClock()
-      val registry = InMemoryWorkflowRegistry(clock).unsafeRunSync()
+      val registry = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
 
       val List(id1, id2) = List.fill(2)(TestUtils.randomWfId())
       val initialTime    = clock.instant
@@ -64,5 +67,13 @@ class InMemoryWorkflowRegistryTest extends AnyFreeSpec with Matchers {
     }
   }
 
-  def dummyAW(id: WorkflowInstanceId): ActiveWorkflow[WorkflowContext { type State = Null }] = ActiveWorkflow(id, WIO.End(), null)
+  // Define a minimal test context for dummy workflows with IO effect
+  object DummyCtx extends WorkflowContext {
+    type Event  = Nothing
+    type State  = Null
+    type Eff[A] = IO[A]
+    given effect: Effect[Eff] = workflows4s.cats.CatsEffect.ioEffect
+  }
+
+  def dummyAW(id: WorkflowInstanceId): ActiveWorkflow[IO, DummyCtx.Ctx] = ActiveWorkflow(id, WIO.End[IO, DummyCtx.Ctx](), null)
 }
