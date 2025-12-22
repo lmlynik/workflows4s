@@ -9,14 +9,96 @@ import workflows4s.wio.ActiveWorkflow
 import java.sql.Timestamp
 import java.time.{Clock, Instant}
 import scala.concurrent.duration.FiniteDuration
-import MagnumJsonCodec.given
-import scala.annotation.nowarn
 
 /** DbCodec for java.time.Instant, storing as TIMESTAMP in PostgreSQL */
 given instantCodec: DbCodec[Instant] = DbCodec[Timestamp].biMap(
-  _.toInstant,
+  ts => if ts == null then null else ts.toInstant,
   Timestamp.from,
 )
+
+/** Magnum entity and repository definitions for workflow_registry table.
+  *
+  * Encapsulated in an object to avoid naming conflicts with WorkflowRegistry trait.
+  */
+object WorkflowRegistryTable {
+
+  /** Entity class representing a row in the workflow_registry table.
+    *
+    * Uses Magnum's @Table annotation for compile-time repository generation. The tags field is stored as a JSON string (Option[String]) rather than
+    * Map[String, String] to simplify DbCodec handling - serialization/deserialization happens at the service layer.
+    *
+    * Note: The class is named `WorkflowRegistry` so that Magnum's CamelToSnakeCase mapper generates the correct table name `workflow_registry`.
+    *
+    * @param templateId
+    *   Workflow template identifier
+    * @param instanceId
+    *   Workflow instance identifier
+    * @param status
+    *   Execution status (Running, Awaiting, Finished)
+    * @param createdAt
+    *   Timestamp when the workflow was created
+    * @param updatedAt
+    *   Timestamp when the workflow was last updated
+    * @param wakeupAt
+    *   Optional timestamp for scheduled wakeup
+    * @param tags
+    *   Optional JSON string containing workflow tags
+    */
+  @Table(PostgresDbType, SqlNameMapper.CamelToSnakeCase)
+  case class WorkflowRegistry(
+      @Id templateId: String,
+      @Id instanceId: String,
+      status: String,
+      createdAt: Instant,
+      updatedAt: Instant,
+      wakeupAt: Option[Instant],
+      tags: Option[String],
+  ) derives DbCodec
+
+  /** Entity-creator class for inserting new workflow registry rows.
+    *
+    * Has the same fields as WorkflowRegistry since there are no auto-generated columns. This is an 'effective' subclass of WorkflowRegistry as
+    * required by Magnum's Repo pattern.
+    *
+    * @param templateId
+    *   Workflow template identifier
+    * @param instanceId
+    *   Workflow instance identifier
+    * @param status
+    *   Execution status (Running, Awaiting, Finished)
+    * @param createdAt
+    *   Timestamp when the workflow was created
+    * @param updatedAt
+    *   Timestamp when the workflow was last updated
+    * @param wakeupAt
+    *   Optional timestamp for scheduled wakeup
+    * @param tags
+    *   Optional JSON string containing workflow tags
+    */
+  case class Creator(
+      templateId: String,
+      instanceId: String,
+      status: String,
+      createdAt: Instant,
+      updatedAt: Instant,
+      wakeupAt: Option[Instant],
+      tags: Option[String],
+  ) derives DbCodec
+
+  /** Repository for workflow registry operations.
+    *
+    * Extends Magnum's Repo to auto-generate common SQL methods at compile-time:
+    *   - findById(id: (String, String)): Option[WorkflowRegistry]
+    *   - findAll: Vector[WorkflowRegistry]
+    *   - insert(creator: Creator): Unit
+    *   - update(entity: WorkflowRegistry): Unit
+    *   - delete(entity: WorkflowRegistry): Unit
+    *   - deleteById(id: (String, String)): Unit
+    *
+    * The composite primary key is (templateId, instanceId).
+    */
+  object Repo extends com.augustnagro.magnum.Repo[Creator, WorkflowRegistry, (String, String)]
+}
 
 /** PostgreSQL-backed workflow registry using Magnum.
   *
@@ -63,6 +145,16 @@ class OxPostgresRegistry(
     tagger: Option[Tagger[Any]] = None,
 ) extends WorkflowRegistry.Agent[Direct] {
 
+  /** Serialize tags to JSON string for database storage.
+    *
+    * @param tags
+    *   Optional map of tag key-value pairs
+    * @return
+    *   Optional JSON string (None if tags are empty or None)
+    */
+  private def serializeTags(tags: Option[Map[String, String]]): Option[String] =
+    tags.filter(_.nonEmpty).map(MagnumJsonCodec.writeJsonString)
+
   /** Upsert workflow instance with current status.
     *
     * Behavior differs based on execution status:
@@ -73,6 +165,9 @@ class OxPostgresRegistry(
     * Also stores:
     *   - wakeup_at: Extracted from ActiveWorkflow.wakeupAt
     *   - tags: Extracted via Tagger interface (if provided)
+    *
+    * Uses Magnum's `connect` context and `sql` interpolator for clean, type-safe database operations. Tags are cast to `::jsonb` in SQL and COALESCE
+    * is used to preserve existing tags when new tags are NULL.
     *
     * @param inst
     *   Active workflow instance
@@ -108,47 +203,25 @@ class OxPostgresRegistry(
       case ExecutionStatus.Finished => "Finished"
     }
 
-    executionStatus match {
-      case ExecutionStatus.Running =>
-        // For Running status, use INSERT...ON CONFLICT to upsert
-        connect(transactor) {
-          val query = sql"""
-            INSERT INTO #$tableName
-              (instance_id, template_id, status, created_at, updated_at, wakeup_at, tags)
-            VALUES (
-              ${id.instanceId},
-              ${id.templateId},
-              $statusStr,
-              $now,
-              $now,
-              $wakeupAt,
-              $tags
-            )
-            ON CONFLICT (template_id, instance_id) DO UPDATE SET
-              status = EXCLUDED.status,
-              updated_at = EXCLUDED.updated_at,
-              wakeup_at = EXCLUDED.wakeup_at,
-              tags = COALESCE(EXCLUDED.tags, #$tableName.tags)
-          """
-          query.update.run(): @nowarn
-          ()
-        }
+    // Serialize tags to JSON string
+    val tagsJson: Option[String] = serializeTags(tags)
 
-      case ExecutionStatus.Awaiting | ExecutionStatus.Finished =>
-        // For Awaiting/Finished, update existing record
-        connect(transactor) {
-          val query = sql"""
-            UPDATE #$tableName
-            SET status = $statusStr,
-                updated_at = $now,
-                wakeup_at = $wakeupAt,
-                tags = COALESCE($tags, tags)
-            WHERE instance_id = ${id.instanceId}
-              AND template_id = ${id.templateId}
-          """
-          query.update.run(): @nowarn
-          ()
-        }
+    // Use Magnum's transact context for upsert (auto-commits on success)
+    // For dynamic table names, we use SqlLiteral to splice the table name directly
+    // into the SQL without parameter binding. This is safe because tableName is
+    // a constructor parameter, not user input.
+    transact(transactor) {
+      val tableNameLit = SqlLiteral(tableName)
+      sql"""
+        INSERT INTO $tableNameLit
+          (instance_id, template_id, status, created_at, updated_at, wakeup_at, tags)
+        VALUES (${id.instanceId}, ${id.templateId}, $statusStr, $now, $now, $wakeupAt, $tagsJson::jsonb)
+        ON CONFLICT (template_id, instance_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          updated_at = EXCLUDED.updated_at,
+          wakeup_at = EXCLUDED.wakeup_at,
+          tags = COALESCE(EXCLUDED.tags, $tableNameLit.tags)
+      """.update.run(): Unit
     }
   }
 
@@ -162,12 +235,13 @@ class OxPostgresRegistry(
     *   List of stale workflow instance IDs
     */
   def getStaleWorkflows(notUpdatedFor: FiniteDuration): Direct[List[WorkflowInstanceId]] = Direct {
-    val cutoffTime = Instant.now(clock).minusMillis(notUpdatedFor.toMillis)
+    val cutoffTime   = Instant.now(clock).minusMillis(notUpdatedFor.toMillis)
+    val tableNameLit = SqlLiteral(tableName)
 
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM $tableNameLit
         WHERE status = 'Running'
           AND updated_at <= $cutoffTime
         ORDER BY updated_at ASC
@@ -189,16 +263,17 @@ class OxPostgresRegistry(
     *   List of workflow instance IDs with the given status
     */
   def getWorkflowsByStatus(status: ExecutionStatus): Direct[List[WorkflowInstanceId]] = Direct {
-    val statusStr = status match {
+    val statusStr    = status match {
       case ExecutionStatus.Running  => "Running"
       case ExecutionStatus.Awaiting => "Awaiting"
       case ExecutionStatus.Finished => "Finished"
     }
+    val tableNameLit = SqlLiteral(tableName)
 
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM $tableNameLit
         WHERE status = $statusStr
         ORDER BY updated_at DESC
       """
@@ -227,10 +302,12 @@ class OxPostgresRegistry(
     *   List of workflow instance IDs with wakeups due
     */
   def getWorkflowsWithPendingWakeups(asOf: Instant = Instant.now(clock)): Direct[List[WorkflowInstanceId]] = Direct {
+    val tableNameLit = SqlLiteral(tableName)
+
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM $tableNameLit
         WHERE wakeup_at IS NOT NULL
           AND wakeup_at <= $asOf
           AND status IN ('Running', 'Awaiting')
@@ -258,12 +335,14 @@ class OxPostgresRegistry(
     if tagFilters.isEmpty then {
       List.empty
     } else {
+      val tableNameLit = SqlLiteral(tableName)
+      val tagsJson     = MagnumJsonCodec.writeJsonString(tagFilters)
+
       connect(transactor) {
-        // Use JSONB containment operator @>
         sql"""
           SELECT template_id, instance_id
-          FROM #$tableName
-          WHERE tags @> $tagFilters
+          FROM $tableNameLit
+          WHERE tags @> $tagsJson::jsonb
           ORDER BY updated_at DESC
         """
           .query[(String, String)]
@@ -284,6 +363,8 @@ class OxPostgresRegistry(
     *   RegistryStats with workflow counts and timestamps
     */
   def getStats: Direct[RegistryStats] = Direct {
+    val tableNameLit = SqlLiteral(tableName)
+
     connect(transactor) {
       sql"""
         SELECT
@@ -293,15 +374,13 @@ class OxPostgresRegistry(
           COUNT(*) FILTER (WHERE status = 'Finished') as finished,
           MIN(updated_at) FILTER (WHERE status = 'Running') as oldest_running,
           MAX(updated_at) FILTER (WHERE status = 'Running') as newest_running
-        FROM #$tableName
-      """
-        .query[(Int, Int, Int, Int, Option[Instant], Option[Instant])]
-        .run()
-        .headOption
-        .map { case (total, running, awaiting, finished, oldestRunning, newestRunning) =>
+        FROM $tableNameLit
+      """.query[(Int, Int, Int, Int, Option[Instant], Option[Instant])].run().headOption match {
+        case Some((total, running, awaiting, finished, oldestRunning, newestRunning)) =>
           RegistryStats(total, running, awaiting, finished, oldestRunning, newestRunning)
-        }
-        .getOrElse(RegistryStats(0, 0, 0, 0, None, None))
+        case None                                                                     =>
+          RegistryStats(0, 0, 0, 0, None, None)
+      }
     }
   }
 }

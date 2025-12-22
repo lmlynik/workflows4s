@@ -58,10 +58,11 @@ object MagnumTransactor {
     config.setJdbcUrl(jdbcUrl)
     config.setUsername(username)
     config.setPassword(password)
+    config.setDriverClassName("org.postgresql.Driver") // Explicitly set PostgreSQL driver
     config.setMaximumPoolSize(maxPoolSize)
     config.setConnectionTimeout(connectionTimeout)
     config.setIdleTimeout(idleTimeout)
-    config.setAutoCommit(false) // Magnum handles transactions
+    config.setAutoCommit(false)                        // Magnum handles transactions
 
     // PostgreSQL-specific optimizations
     config.addDataSourceProperty("cachePrepStmts", "true")
