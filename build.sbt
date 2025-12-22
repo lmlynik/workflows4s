@@ -73,7 +73,15 @@ lazy val `workflows4s-ox` = (project in file("workflows4s-ox"))
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.softwaremill.ox" %% "core" % oxVersion,
+      "com.softwaremill.ox"  %% "core"                            % oxVersion,
+      "com.augustnagro"      %% "magnum"                          % magnumVersion,
+      "com.augustnagro"      %% "magnumpg"                        % magnumVersion,
+      "com.zaxxer"            % "HikariCP"                        % "6.2.1",
+      "org.postgresql"        % "postgresql"                      % "42.7.8",
+      "io.circe"             %% "circe-core"                      % circeVersion,
+      "io.circe"             %% "circe-parser"                    % circeVersion,
+      "com.dimafeng"         %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
+      "com.dimafeng"         %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
     ),
   )
   .dependsOn(
@@ -294,7 +302,8 @@ lazy val testcontainersScalaVersion = "0.43.6"
 lazy val tapirVersion               = "1.12.3"
 lazy val circeVersion               = "0.14.15"
 lazy val zioVersion                 = "2.1.14"
-lazy val oxVersion                  = "0.5.3"
+lazy val oxVersion                  = "1.0.2"
+lazy val magnumVersion              = "1.3.0"
 
 addCommandAlias("prePR", List("compile", "Test / compile", "test", "scalafmtCheckAll").mkString(";", ";", ""))
 
