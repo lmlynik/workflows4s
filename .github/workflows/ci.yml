@@ -22,6 +22,11 @@ jobs:
         run: npm ci
         working-directory: ./workflows4s-web-ui
 
+      - name: Verify Docker
+        run: |
+          docker --version
+          docker info
+
       - name: Build and Test
         run: sbt test
       - name: scalafmt check

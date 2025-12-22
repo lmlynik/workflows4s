@@ -5,6 +5,8 @@ import org.scalatest.matchers.should.Matchers
 import workflows4s.runtime.WorkflowInstanceId
 import workflows4s.utils.StringUtils
 
+case class TestEvent(data: String) extends Serializable
+
 class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with Matchers {
 
   "PostgresWorkflowStorage" - {
@@ -107,6 +109,4 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
       StringUtils.randomAlphanumericString(8),
     )
   }
-
-  private case class TestEvent(data: String) extends Serializable
 }
