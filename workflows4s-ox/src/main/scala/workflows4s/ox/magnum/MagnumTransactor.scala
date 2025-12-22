@@ -58,6 +58,7 @@ object MagnumTransactor {
     config.setJdbcUrl(jdbcUrl)
     config.setUsername(username)
     config.setPassword(password)
+    config.setDriverClassName("org.postgresql.Driver") // Explicitly set PostgreSQL driver
     config.setMaximumPoolSize(maxPoolSize)
     config.setConnectionTimeout(connectionTimeout)
     config.setIdleTimeout(idleTimeout)
