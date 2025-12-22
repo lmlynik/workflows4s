@@ -55,7 +55,7 @@ class PostgresWorkflowStorage[Event](
     connect(transactor) {
       sql"""
         SELECT event_data
-        FROM #$tableName
+        FROM ${SqlLiteral(tableName)}
         WHERE instance_id = ${id.instanceId}
           AND template_id = ${id.templateId}
         ORDER BY event_id
@@ -83,7 +83,7 @@ class PostgresWorkflowStorage[Event](
 
     connect(transactor) {
       sql"""
-        INSERT INTO #$tableName (instance_id, template_id, event_data)
+        INSERT INTO ${SqlLiteral(tableName)} (instance_id, template_id, event_data)
         VALUES (${id.instanceId}, ${id.templateId}, $bytes)
       """.update
         .run(): @scala.annotation.nowarn

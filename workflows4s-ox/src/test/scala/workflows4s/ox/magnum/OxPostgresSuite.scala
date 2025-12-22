@@ -83,19 +83,38 @@ trait OxPostgresSuite extends TestContainerForAll with BeforeAndAfterEach { self
 
       val schemaSql = Source.fromInputStream(schemaResource).mkString
 
-      // Split by semicolon and execute each statement
+      // Split SQL into individual statements and execute each separately
+      // JDBC can only execute one statement at a time
       val statements = schemaSql
         .split(";")
         .map(_.trim)
         .filter(_.nonEmpty)
-        .filterNot(_.startsWith("--")) // Remove comment-only lines
+        .filterNot(s => s.startsWith("--") && !s.contains("\n")) // Remove single-line comments
 
-      connect(transactor) {
-        statements.foreach { stmt =>
-          val query = sql"#$stmt"
-          query.update.run(): @scala.annotation.nowarn
-          ()
+      // Execute schema directly without connect wrapper to avoid transaction/connection pool issues
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        // Disable autocommit and manually commit at the end to ensure schema changes are persisted
+        conn.setAutoCommit(false)
+        val stmt = conn.createStatement()
+        try {
+          statements.foreach { sql =>
+            if (sql.nonEmpty) {
+              stmt.execute(sql): @scala.annotation.nowarn
+              ()
+            }
+          }
+          // Commit all schema changes
+          conn.commit()
+        } catch {
+          case e: Exception =>
+            conn.rollback()
+            throw e
+        } finally {
+          stmt.close()
         }
+      } finally {
+        conn.close()
       }
     }
   }
