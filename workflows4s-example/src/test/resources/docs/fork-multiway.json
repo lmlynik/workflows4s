@@ -1,0 +1,40 @@
+{
+  "branches" : [
+    {
+      "meta" : {
+        "name" : "Process Low Priority",
+        "error" : null
+      },
+      "_type" : "Pure"
+    },
+    {
+      "meta" : {
+        "name" : "Process Medium Priority",
+        "error" : null
+      },
+      "_type" : "Pure"
+    },
+    {
+      "meta" : {
+        "name" : "Process High Priority",
+        "error" : null
+      },
+      "_type" : "Pure"
+    }
+  ],
+  "meta" : {
+    "name" : "Priority Router",
+    "branches" : [
+      {
+        "name" : "Low?"
+      },
+      {
+        "name" : "Medium?"
+      },
+      {
+        "name" : "High"
+      }
+    ]
+  },
+  "_type" : "Fork"
+}
