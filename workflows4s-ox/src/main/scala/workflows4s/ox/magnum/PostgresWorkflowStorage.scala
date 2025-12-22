@@ -53,20 +53,39 @@ class PostgresWorkflowStorage[Event](
     */
   override def getEvents(id: WorkflowInstanceId): Direct[LazyList[Event]] = Direct {
     connect(transactor) {
-      val table = SqlLiteral(tableName)
-      sql"""
+      // Build query string with table name using string interpolation
+      // Note: tableName is a trusted, hardcoded value, not user input
+      val queryStr = s"""
         SELECT event_data
-        FROM $table
-        WHERE instance_id = ${id.instanceId}
-          AND template_id = ${id.templateId}
+        FROM $tableName
+        WHERE instance_id = ? AND template_id = ?
         ORDER BY event_id
       """
-        .query[Array[Byte]]
-        .run()
-        .to(LazyList)
-        .map { bytes =>
-          eventCodec.read(IArray.unsafeFromArray(bytes)).get
+
+      // Use raw JDBC with proper connection management
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setString(1, id.instanceId)
+          stmt.setString(2, id.templateId)
+          val rs = stmt.executeQuery()
+          try {
+            val builder = LazyList.newBuilder[Event]
+            while rs.next() do {
+              val bytes = rs.getBytes(1)
+              builder += eventCodec.read(IArray.unsafeFromArray(bytes)).get
+            }
+            builder.result()
+          } finally {
+            rs.close()
+          }
+        } finally {
+          stmt.close()
         }
+      } finally {
+        conn.close()
+      }
     }
   }
 
@@ -83,13 +102,29 @@ class PostgresWorkflowStorage[Event](
     val bytes = IArray.genericWrapArray(eventCodec.write(event)).toArray
 
     connect(transactor) {
-      val table = SqlLiteral(tableName)
-      sql"""
-        INSERT INTO $table (instance_id, template_id, event_data)
-        VALUES (${id.instanceId}, ${id.templateId}, $bytes)
-      """.update
-        .run(): @scala.annotation.nowarn
-      ()
+      // Build query string with table name using string interpolation
+      // Note: tableName is a trusted, hardcoded value, not user input
+      val queryStr = s"""
+        INSERT INTO $tableName (instance_id, template_id, event_data)
+        VALUES (?, ?, ?)
+      """
+
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setString(1, id.instanceId)
+          stmt.setString(2, id.templateId)
+          stmt.setBytes(3, bytes)
+          stmt.executeUpdate(): @scala.annotation.nowarn
+          conn.commit() // Explicitly commit since autoCommit is false
+          ()
+        } finally {
+          stmt.close()
+        }
+      } finally {
+        conn.close()
+      }
     }
   }
 

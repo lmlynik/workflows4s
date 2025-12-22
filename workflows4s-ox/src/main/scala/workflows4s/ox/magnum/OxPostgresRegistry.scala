@@ -9,7 +9,6 @@ import workflows4s.wio.ActiveWorkflow
 import java.sql.Timestamp
 import java.time.{Clock, Instant}
 import scala.concurrent.duration.FiniteDuration
-import MagnumJsonCodec.given
 import scala.annotation.nowarn
 
 /** DbCodec for java.time.Instant, storing as TIMESTAMP in PostgreSQL */
@@ -108,47 +107,43 @@ class OxPostgresRegistry(
       case ExecutionStatus.Finished => "Finished"
     }
 
-    executionStatus match {
-      case ExecutionStatus.Running =>
-        // For Running status, use INSERT...ON CONFLICT to upsert
-        connect(transactor) {
-          val query = sql"""
-            INSERT INTO ${SqlLiteral(tableName)}
-              (instance_id, template_id, status, created_at, updated_at, wakeup_at, tags)
-            VALUES (
-              ${id.instanceId},
-              ${id.templateId},
-              $statusStr,
-              $now,
-              $now,
-              $wakeupAt,
-              $tags::jsonb
-            )
-            ON CONFLICT (template_id, instance_id) DO UPDATE SET
-              status = EXCLUDED.status,
-              updated_at = EXCLUDED.updated_at,
-              wakeup_at = EXCLUDED.wakeup_at,
-              tags = COALESCE(EXCLUDED.tags, ${SqlLiteral(tableName)}.tags)
-          """
-          query.update.run(): @nowarn
-          ()
-        }
+    // Always use INSERT...ON CONFLICT to handle both new and existing rows
+    connect(transactor) {
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        // Build query with string interpolation for table name
+        val queryStr = s"""
+          INSERT INTO $tableName
+            (instance_id, template_id, status, created_at, updated_at, wakeup_at, tags)
+          VALUES (?, ?, ?, ?, ?, ?, ?::jsonb)
+          ON CONFLICT (template_id, instance_id) DO UPDATE SET
+            status = EXCLUDED.status,
+            updated_at = EXCLUDED.updated_at,
+            wakeup_at = EXCLUDED.wakeup_at,
+            tags = COALESCE(EXCLUDED.tags, $tableName.tags)
+        """
 
-      case ExecutionStatus.Awaiting | ExecutionStatus.Finished =>
-        // For Awaiting/Finished, update existing record
-        connect(transactor) {
-          val query = sql"""
-            UPDATE ${SqlLiteral(tableName)}
-            SET status = $statusStr,
-                updated_at = $now,
-                wakeup_at = $wakeupAt,
-                tags = COALESCE($tags::jsonb, tags)
-            WHERE instance_id = ${id.instanceId}
-              AND template_id = ${id.templateId}
-          """
-          query.update.run(): @nowarn
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setString(1, id.instanceId)
+          stmt.setString(2, id.templateId)
+          stmt.setString(3, statusStr)
+          stmt.setTimestamp(4, java.sql.Timestamp.from(now))
+          stmt.setTimestamp(5, java.sql.Timestamp.from(now))
+          wakeupAt match {
+            case Some(t) => stmt.setTimestamp(6, java.sql.Timestamp.from(t))
+            case None    => stmt.setNull(6, java.sql.Types.TIMESTAMP)
+          }
+          stmt.setString(7, tags.map(MagnumJsonCodec.writeJsonString).orNull)
+          stmt.executeUpdate(): @nowarn
+          conn.commit()
           ()
+        } finally {
+          stmt.close()
         }
+      } finally {
+        conn.close()
+      }
     }
   }
 
@@ -165,19 +160,35 @@ class OxPostgresRegistry(
     val cutoffTime = Instant.now(clock).minusMillis(notUpdatedFor.toMillis)
 
     connect(transactor) {
-      sql"""
-        SELECT template_id, instance_id
-        FROM ${SqlLiteral(tableName)}
-        WHERE status = 'Running'
-          AND updated_at <= $cutoffTime
-        ORDER BY updated_at ASC
-      """
-        .query[(String, String)]
-        .run()
-        .map { case (templateId, instanceId) =>
-          WorkflowInstanceId(templateId, instanceId)
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val queryStr = s"""
+          SELECT template_id, instance_id
+          FROM $tableName
+          WHERE status = 'Running'
+            AND updated_at <= ?
+          ORDER BY updated_at ASC
+        """
+
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setTimestamp(1, java.sql.Timestamp.from(cutoffTime))
+          val rs = stmt.executeQuery()
+          try {
+            val builder = List.newBuilder[WorkflowInstanceId]
+            while rs.next() do {
+              builder += WorkflowInstanceId(rs.getString(1), rs.getString(2))
+            }
+            builder.result()
+          } finally {
+            rs.close()
+          }
+        } finally {
+          stmt.close()
         }
-        .toList
+      } finally {
+        conn.close()
+      }
     }
   }
 
@@ -196,18 +207,34 @@ class OxPostgresRegistry(
     }
 
     connect(transactor) {
-      sql"""
-        SELECT template_id, instance_id
-        FROM ${SqlLiteral(tableName)}
-        WHERE status = $statusStr
-        ORDER BY updated_at DESC
-      """
-        .query[(String, String)]
-        .run()
-        .map { case (templateId, instanceId) =>
-          WorkflowInstanceId(templateId, instanceId)
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val queryStr = s"""
+          SELECT template_id, instance_id
+          FROM $tableName
+          WHERE status = ?
+          ORDER BY updated_at DESC
+        """
+
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setString(1, statusStr)
+          val rs = stmt.executeQuery()
+          try {
+            val builder = List.newBuilder[WorkflowInstanceId]
+            while rs.next() do {
+              builder += WorkflowInstanceId(rs.getString(1), rs.getString(2))
+            }
+            builder.result()
+          } finally {
+            rs.close()
+          }
+        } finally {
+          stmt.close()
         }
-        .toList
+      } finally {
+        conn.close()
+      }
     }
   }
 
@@ -228,20 +255,36 @@ class OxPostgresRegistry(
     */
   def getWorkflowsWithPendingWakeups(asOf: Instant = Instant.now(clock)): Direct[List[WorkflowInstanceId]] = Direct {
     connect(transactor) {
-      sql"""
-        SELECT template_id, instance_id
-        FROM ${SqlLiteral(tableName)}
-        WHERE wakeup_at IS NOT NULL
-          AND wakeup_at <= $asOf
-          AND status IN ('Running', 'Awaiting')
-        ORDER BY wakeup_at ASC
-      """
-        .query[(String, String)]
-        .run()
-        .map { case (templateId, instanceId) =>
-          WorkflowInstanceId(templateId, instanceId)
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val queryStr = s"""
+          SELECT template_id, instance_id
+          FROM $tableName
+          WHERE wakeup_at IS NOT NULL
+            AND wakeup_at <= ?
+            AND status IN ('Running', 'Awaiting')
+          ORDER BY wakeup_at ASC
+        """
+
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          stmt.setTimestamp(1, java.sql.Timestamp.from(asOf))
+          val rs = stmt.executeQuery()
+          try {
+            val builder = List.newBuilder[WorkflowInstanceId]
+            while rs.next() do {
+              builder += WorkflowInstanceId(rs.getString(1), rs.getString(2))
+            }
+            builder.result()
+          } finally {
+            rs.close()
+          }
+        } finally {
+          stmt.close()
         }
-        .toList
+      } finally {
+        conn.close()
+      }
     }
   }
 
@@ -259,19 +302,35 @@ class OxPostgresRegistry(
       List.empty
     } else {
       connect(transactor) {
-        // Use JSONB containment operator @>
-        sql"""
-          SELECT template_id, instance_id
-          FROM ${SqlLiteral(tableName)}
-          WHERE tags @> $tagFilters::jsonb
-          ORDER BY updated_at DESC
-        """
-          .query[(String, String)]
-          .run()
-          .map { case (templateId, instanceId) =>
-            WorkflowInstanceId(templateId, instanceId)
+        val conn = transactor.dataSource.getConnection.nn
+        try {
+          val tagsJson = MagnumJsonCodec.writeJsonString(tagFilters)
+          val queryStr = s"""
+            SELECT template_id, instance_id
+            FROM $tableName
+            WHERE tags @> ?::jsonb
+            ORDER BY updated_at DESC
+          """
+
+          val stmt = conn.prepareStatement(queryStr)
+          try {
+            stmt.setString(1, tagsJson)
+            val rs = stmt.executeQuery()
+            try {
+              val builder = List.newBuilder[WorkflowInstanceId]
+              while rs.next() do {
+                builder += WorkflowInstanceId(rs.getString(1), rs.getString(2))
+              }
+              builder.result()
+            } finally {
+              rs.close()
+            }
+          } finally {
+            stmt.close()
           }
-          .toList
+        } finally {
+          conn.close()
+        }
       }
     }
   }
@@ -285,23 +344,44 @@ class OxPostgresRegistry(
     */
   def getStats: Direct[RegistryStats] = Direct {
     connect(transactor) {
-      sql"""
-        SELECT
-          COUNT(*) as total,
-          COUNT(*) FILTER (WHERE status = 'Running') as running,
-          COUNT(*) FILTER (WHERE status = 'Awaiting') as awaiting,
-          COUNT(*) FILTER (WHERE status = 'Finished') as finished,
-          MIN(updated_at) FILTER (WHERE status = 'Running') as oldest_running,
-          MAX(updated_at) FILTER (WHERE status = 'Running') as newest_running
-        FROM ${SqlLiteral(tableName)}
-      """
-        .query[(Int, Int, Int, Int, Option[Instant], Option[Instant])]
-        .run()
-        .headOption
-        .map { case (total, running, awaiting, finished, oldestRunning, newestRunning) =>
-          RegistryStats(total, running, awaiting, finished, oldestRunning, newestRunning)
+      val conn = transactor.dataSource.getConnection.nn
+      try {
+        val queryStr = s"""
+          SELECT
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status = 'Running') as running,
+            COUNT(*) FILTER (WHERE status = 'Awaiting') as awaiting,
+            COUNT(*) FILTER (WHERE status = 'Finished') as finished,
+            MIN(updated_at) FILTER (WHERE status = 'Running') as oldest_running,
+            MAX(updated_at) FILTER (WHERE status = 'Running') as newest_running
+          FROM $tableName
+        """
+
+        val stmt = conn.prepareStatement(queryStr)
+        try {
+          val rs = stmt.executeQuery()
+          try {
+            if rs.next() then {
+              RegistryStats(
+                total = rs.getInt(1),
+                running = rs.getInt(2),
+                awaiting = rs.getInt(3),
+                finished = rs.getInt(4),
+                oldestRunning = Option(rs.getTimestamp(5)).map(_.toInstant),
+                newestRunning = Option(rs.getTimestamp(6)).map(_.toInstant),
+              )
+            } else {
+              RegistryStats(0, 0, 0, 0, None, None)
+            }
+          } finally {
+            rs.close()
+          }
+        } finally {
+          stmt.close()
         }
-        .getOrElse(RegistryStats(0, 0, 0, 0, None, None))
+      } finally {
+        conn.close()
+      }
     }
   }
 }

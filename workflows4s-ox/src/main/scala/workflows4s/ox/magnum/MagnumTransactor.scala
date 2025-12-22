@@ -62,7 +62,7 @@ object MagnumTransactor {
     config.setMaximumPoolSize(maxPoolSize)
     config.setConnectionTimeout(connectionTimeout)
     config.setIdleTimeout(idleTimeout)
-    config.setAutoCommit(false) // Magnum handles transactions
+    config.setAutoCommit(false)                        // Magnum handles transactions
 
     // PostgreSQL-specific optimizations
     config.addDataSourceProperty("cachePrepStmts", "true")

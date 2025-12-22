@@ -56,9 +56,18 @@ trait OxMagnumTestSuite extends TestContainerForAll with BeforeAndAfterEach { se
   override def afterEach(): Unit = {
     super.afterEach()
     // Truncate table between tests
-    connect(transactor) {
-      sql"TRUNCATE TABLE workflow_registry".update.run(): @scala.annotation.nowarn
-      ()
+    val conn = transactor.dataSource.getConnection.nn
+    try {
+      val stmt = conn.createStatement()
+      try {
+        stmt.execute("TRUNCATE TABLE workflow_registry"): @scala.annotation.nowarn
+        conn.commit()
+        ()
+      } finally {
+        stmt.close()
+      }
+    } finally {
+      conn.close()
     }
   }
 
@@ -87,7 +96,7 @@ trait OxMagnumTestSuite extends TestContainerForAll with BeforeAndAfterEach { se
       val stmt = conn.createStatement()
       try {
         statements.foreach { sql =>
-          if (sql.nonEmpty) {
+          if sql.nonEmpty then {
             stmt.execute(sql): @scala.annotation.nowarn
             ()
           }
