@@ -17,12 +17,12 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
       val id                     = randomWorkflowId()
 
       // Save multiple events
-      storage.saveEvent(id, TestEvent("event1")).runSync
-      storage.saveEvent(id, TestEvent("event2")).runSync
-      storage.saveEvent(id, TestEvent("event3")).runSync
+      storage.saveEvent(id, TestEvent("event1")).run
+      storage.saveEvent(id, TestEvent("event2")).run
+      storage.saveEvent(id, TestEvent("event3")).run
 
       // Retrieve events
-      val events = storage.getEvents(id).runSync.toList
+      val events = storage.getEvents(id).run.toList
 
       events shouldBe List(
         TestEvent("event1"),
@@ -36,7 +36,7 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
       val storage                = PostgresWorkflowStorage[TestEvent](transactor)
       val id                     = randomWorkflowId()
 
-      val events = storage.getEvents(id).runSync.toList
+      val events = storage.getEvents(id).run.toList
 
       events shouldBe empty
     }
@@ -48,12 +48,12 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
       val id1 = WorkflowInstanceId("template1", "instance1")
       val id2 = WorkflowInstanceId("template1", "instance2")
 
-      storage.saveEvent(id1, TestEvent("event1-1")).runSync
-      storage.saveEvent(id2, TestEvent("event2-1")).runSync
-      storage.saveEvent(id1, TestEvent("event1-2")).runSync
+      storage.saveEvent(id1, TestEvent("event1-1")).run
+      storage.saveEvent(id2, TestEvent("event2-1")).run
+      storage.saveEvent(id1, TestEvent("event1-2")).run
 
-      val events1 = storage.getEvents(id1).runSync.toList
-      val events2 = storage.getEvents(id2).runSync.toList
+      val events1 = storage.getEvents(id1).run.toList
+      val events2 = storage.getEvents(id2).run.toList
 
       events1 shouldBe List(TestEvent("event1-1"), TestEvent("event1-2"))
       events2 shouldBe List(TestEvent("event2-1"))
@@ -71,7 +71,7 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
             "success"
           }
         }
-        .runSync
+        .run
 
       result1 shouldBe "success"
     }
@@ -83,11 +83,11 @@ class PostgresWorkflowStorageTest extends AnyFreeSpec with OxPostgresSuite with 
 
       // Save many events
       (1 to 100).foreach { i =>
-        storage.saveEvent(id, TestEvent(s"event-$i")).runSync
+        storage.saveEvent(id, TestEvent(s"event-$i")).run
       }
 
       // Retrieve as LazyList (should not load all into memory immediately)
-      val events = storage.getEvents(id).runSync
+      val events = storage.getEvents(id).run
 
       events.take(5).toList shouldBe List(
         TestEvent("event-1"),

@@ -18,12 +18,12 @@ class DatabaseRuntimeTest extends AnyFreeSpec with OxPostgresSuite {
 
       val runtime = DatabaseRuntime
         .create[TestCtx.Ctx](workflow, WFState(0), transactor, engine, JavaSerdeEventCodec.get, "test-workflow")
-        .runSync
+        .run
 
       // For now, just verify basic functionality
-      val instance = runtime.createInstance("1").runSync
+      val instance = runtime.createInstance("1").run
 
-      assert(instance.queryState().runSync.count == 0)
+      assert(instance.queryState().run.count == 0)
     }
   }
 

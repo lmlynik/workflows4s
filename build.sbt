@@ -82,6 +82,8 @@ lazy val `workflows4s-ox` = (project in file("workflows4s-ox"))
       "io.circe"             %% "circe-parser"                    % circeVersion,
       "com.dimafeng"         %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
       "com.dimafeng"         %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
+      "org.scalacheck"       %% "scalacheck"                      % "1.18.1"                   % Test,
+      "org.scalatestplus"    %% "scalacheck-1-18"                 % "3.2.19.0"                 % Test,
     ),
   )
   .dependsOn(

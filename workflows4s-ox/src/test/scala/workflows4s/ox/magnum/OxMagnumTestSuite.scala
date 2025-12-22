@@ -4,7 +4,6 @@ import com.augustnagro.magnum.*
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.scalatest.TestContainerForAll
 import org.scalatest.{BeforeAndAfterEach, Suite}
-import workflows4s.ox.Direct
 
 import scala.io.Source
 
@@ -21,7 +20,7 @@ import scala.io.Source
   * class OxPostgresRegistryTest extends AnyFreeSpec with OxMagnumTestSuite with Matchers {
   *   "OxPostgresRegistry" - {
   *     "should store workflows" in {
-  *       val registry = OxPostgresRegistry(transactor).runSync
+  *       val registry = OxPostgresRegistry(transactor).run
   *       // ... test code ...
   *     }
   *   }
@@ -115,8 +114,4 @@ trait OxMagnumTestSuite extends TestContainerForAll with BeforeAndAfterEach { se
     }
   }
 
-  /** Helper extension method to run Direct computations synchronously in tests */
-  extension [A](d: Direct[A]) {
-    def runSync: A = d.run
-  }
 }
