@@ -53,9 +53,10 @@ class PostgresWorkflowStorage[Event](
     */
   override def getEvents(id: WorkflowInstanceId): Direct[LazyList[Event]] = Direct {
     connect(transactor) {
+      val table = SqlLiteral(tableName)
       sql"""
         SELECT event_data
-        FROM ${SqlLiteral(tableName)}
+        FROM $table
         WHERE instance_id = ${id.instanceId}
           AND template_id = ${id.templateId}
         ORDER BY event_id
@@ -82,8 +83,9 @@ class PostgresWorkflowStorage[Event](
     val bytes = IArray.genericWrapArray(eventCodec.write(event)).toArray
 
     connect(transactor) {
+      val table = SqlLiteral(tableName)
       sql"""
-        INSERT INTO ${SqlLiteral(tableName)} (instance_id, template_id, event_data)
+        INSERT INTO $table (instance_id, template_id, event_data)
         VALUES (${id.instanceId}, ${id.templateId}, $bytes)
       """.update
         .run(): @scala.annotation.nowarn

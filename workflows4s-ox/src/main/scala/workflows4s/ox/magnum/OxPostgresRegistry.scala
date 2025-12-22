@@ -14,7 +14,7 @@ import scala.annotation.nowarn
 
 /** DbCodec for java.time.Instant, storing as TIMESTAMP in PostgreSQL */
 given instantCodec: DbCodec[Instant] = DbCodec[Timestamp].biMap(
-  _.toInstant,
+  ts => if ts == null then null else ts.toInstant,
   Timestamp.from,
 )
 
@@ -113,7 +113,7 @@ class OxPostgresRegistry(
         // For Running status, use INSERT...ON CONFLICT to upsert
         connect(transactor) {
           val query = sql"""
-            INSERT INTO #$tableName
+            INSERT INTO ${SqlLiteral(tableName)}
               (instance_id, template_id, status, created_at, updated_at, wakeup_at, tags)
             VALUES (
               ${id.instanceId},
@@ -122,13 +122,13 @@ class OxPostgresRegistry(
               $now,
               $now,
               $wakeupAt,
-              $tags
+              $tags::jsonb
             )
             ON CONFLICT (template_id, instance_id) DO UPDATE SET
               status = EXCLUDED.status,
               updated_at = EXCLUDED.updated_at,
               wakeup_at = EXCLUDED.wakeup_at,
-              tags = COALESCE(EXCLUDED.tags, #$tableName.tags)
+              tags = COALESCE(EXCLUDED.tags, ${SqlLiteral(tableName)}.tags)
           """
           query.update.run(): @nowarn
           ()
@@ -138,11 +138,11 @@ class OxPostgresRegistry(
         // For Awaiting/Finished, update existing record
         connect(transactor) {
           val query = sql"""
-            UPDATE #$tableName
+            UPDATE ${SqlLiteral(tableName)}
             SET status = $statusStr,
                 updated_at = $now,
                 wakeup_at = $wakeupAt,
-                tags = COALESCE($tags, tags)
+                tags = COALESCE($tags::jsonb, tags)
             WHERE instance_id = ${id.instanceId}
               AND template_id = ${id.templateId}
           """
@@ -167,7 +167,7 @@ class OxPostgresRegistry(
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM ${SqlLiteral(tableName)}
         WHERE status = 'Running'
           AND updated_at <= $cutoffTime
         ORDER BY updated_at ASC
@@ -198,7 +198,7 @@ class OxPostgresRegistry(
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM ${SqlLiteral(tableName)}
         WHERE status = $statusStr
         ORDER BY updated_at DESC
       """
@@ -230,7 +230,7 @@ class OxPostgresRegistry(
     connect(transactor) {
       sql"""
         SELECT template_id, instance_id
-        FROM #$tableName
+        FROM ${SqlLiteral(tableName)}
         WHERE wakeup_at IS NOT NULL
           AND wakeup_at <= $asOf
           AND status IN ('Running', 'Awaiting')
@@ -262,8 +262,8 @@ class OxPostgresRegistry(
         // Use JSONB containment operator @>
         sql"""
           SELECT template_id, instance_id
-          FROM #$tableName
-          WHERE tags @> $tagFilters
+          FROM ${SqlLiteral(tableName)}
+          WHERE tags @> $tagFilters::jsonb
           ORDER BY updated_at DESC
         """
           .query[(String, String)]
@@ -293,7 +293,7 @@ class OxPostgresRegistry(
           COUNT(*) FILTER (WHERE status = 'Finished') as finished,
           MIN(updated_at) FILTER (WHERE status = 'Running') as oldest_running,
           MAX(updated_at) FILTER (WHERE status = 'Running') as newest_running
-        FROM #$tableName
+        FROM ${SqlLiteral(tableName)}
       """
         .query[(Int, Int, Int, Int, Option[Instant], Option[Instant])]
         .run()
