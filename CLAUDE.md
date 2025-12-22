@@ -78,9 +78,16 @@ cd ..
 ### Website
 ```bash
 cd website
+
+# Using yarn
 yarn install
 yarn build
 yarn start  # Local development server
+
+# Or using npm
+npm install
+npm run build
+npm start   # Local development server
 ```
 
 ## Architecture Overview
