@@ -4,6 +4,8 @@ import cats.effect.IO
 import io.circe.{Codec, Encoder, KeyDecoder, KeyEncoder}
 import sttp.tapir.Schema
 
+import scala.concurrent.Future
+
 sealed trait ReviewDecision derives Codec.AsObject, Schema
 object ReviewDecision {
   case object Approve extends ReviewDecision
@@ -40,6 +42,13 @@ object CheckKey {
 trait Check[-Data] {
   def key: CheckKey
   def run(data: Data): IO[CheckResult]
+
+  /** Future-based version of run for use with FutureEffect. Default implementation converts from IO using unsafeToFuture.
+    */
+  def runFuture(data: Data): Future[CheckResult] = {
+    import cats.effect.unsafe.implicits.global
+    run(data).unsafeToFuture()
+  }
 }
 
 sealed trait ChecksState derives Encoder {

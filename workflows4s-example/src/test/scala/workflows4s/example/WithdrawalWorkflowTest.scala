@@ -198,7 +198,7 @@ object WithdrawalWorkflowTest {
         )
         runtime.clock.advanceBy(WithdrawalWorkflow.executionRetryDelay.toScala)
         runtime.clock.advanceBy(1.second)
-        runtime.executeDueWakup(actor.wf)
+        runtime.executeDueWakeup(actor.wf)
         assert(
           actor.queryData() ==
             WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
@@ -223,7 +223,7 @@ object WithdrawalWorkflowTest {
             val recoveredState = eventually {
               secondActor.queryState()
             }
-            val _              = assert(recoveredState == originalState)
+            assert(recoveredState == originalState): Unit
           }
         }
 

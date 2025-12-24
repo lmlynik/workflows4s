@@ -29,11 +29,13 @@ trait Effect[F[_]] {
   // Mutex type for effect-polymorphic locking
   type Mutex
 
-  /** Create a new mutex */
-  def createMutex: Mutex
+  /** Create a new mutex within the effect context */
+  def createMutex: F[Mutex]
 
-  /** Run an effect while holding the mutex, ensuring release on completion/error */
-  def withLock[A](m: Mutex)(fa: F[A]): F[A]
+  /** Run an effect while holding the mutex, ensuring release on completion/error. Note: fa is by-name to ensure the effect is not started until the
+    * lock is acquired. This is critical for eager effect types like Future.
+    */
+  def withLock[A](m: Mutex)(fa: => F[A]): F[A]
 
   // Core monadic operations
   def pure[A](a: A): F[A]
@@ -125,9 +127,9 @@ object Effect {
   given idEffect: Effect[cats.Id] = new Effect[cats.Id] {
     type Mutex = java.util.concurrent.Semaphore
 
-    def createMutex: Mutex = new java.util.concurrent.Semaphore(1)
+    def createMutex: cats.Id[Mutex] = new java.util.concurrent.Semaphore(1)
 
-    def withLock[A](m: Mutex)(fa: cats.Id[A]): cats.Id[A] = {
+    def withLock[A](m: Mutex)(fa: => cats.Id[A]): cats.Id[A] = {
       m.acquire()
       try fa
       finally m.release()
@@ -144,17 +146,20 @@ object Effect {
       Thread.sleep(duration.toMillis)
     def delay[A](a: => A): cats.Id[A]                                                 = a
 
+    // Note: This Ref implementation uses synchronized for thread-safety.
+    // While Id is typically used in single-threaded contexts, tests may involve
+    // concurrent access, so we provide basic thread-safety guarantees.
     def ref[A](initial: A): cats.Id[Ref[cats.Id, A]] = new Ref[cats.Id, A] {
-      @volatile private var value: A            = initial
-      def get: cats.Id[A]                       = value
-      def set(a: A): cats.Id[Unit]              = { value = a }
-      def update(f: A => A): cats.Id[Unit]      = { value = f(value) }
-      def modify[B](f: A => (A, B)): cats.Id[B] = {
+      private var value: A                      = initial
+      def get: cats.Id[A]                       = synchronized { value }
+      def set(a: A): cats.Id[Unit]              = synchronized { value = a }
+      def update(f: A => A): cats.Id[Unit]      = synchronized { value = f(value) }
+      def modify[B](f: A => (A, B)): cats.Id[B] = synchronized {
         val (newA, b) = f(value)
         value = newA
         b
       }
-      def getAndUpdate(f: A => A): cats.Id[A]   = {
+      def getAndUpdate(f: A => A): cats.Id[A]   = synchronized {
         val old = value
         value = f(value)
         old
@@ -184,95 +189,6 @@ object Effect {
       }
     }
   }
-
-  /** Effect instance for scala.concurrent.Future (asynchronous execution).
-    */
-  def futureEffect(using ec: scala.concurrent.ExecutionContext): Effect[scala.concurrent.Future] =
-    new Effect[scala.concurrent.Future] {
-      import scala.concurrent.{Future, Promise, blocking}
-      import java.util.concurrent.atomic.AtomicReference
-
-      type Mutex = java.util.concurrent.Semaphore
-
-      def createMutex: Mutex = new java.util.concurrent.Semaphore(1)
-
-      def withLock[A](m: Mutex)(fa: Future[A]): Future[A] = {
-        m.acquire()
-        fa.andThen { case _ => m.release() }
-      }
-
-      def pure[A](a: A): Future[A]                                                   = Future.successful(a)
-      def flatMap[A, B](fa: Future[A])(f: A => Future[B]): Future[B]                 = fa.flatMap(f)
-      def map[A, B](fa: Future[A])(f: A => B): Future[B]                             = fa.map(f)
-      def raiseError[A](e: Throwable): Future[A]                                     = Future.failed(e)
-      def handleErrorWith[A](fa: => Future[A])(f: Throwable => Future[A]): Future[A] =
-        fa.recoverWith { case e => f(e) }
-      def sleep(duration: scala.concurrent.duration.FiniteDuration): Future[Unit]    =
-        Future(blocking(Thread.sleep(duration.toMillis)))
-      def delay[A](a: => A): Future[A]                                               = Future(a)
-
-      def ref[A](initial: A): Future[Ref[Future, A]] = Future.successful(new Ref[Future, A] {
-        private val underlying                   = new AtomicReference[A](initial)
-        def get: Future[A]                       = Future.successful(underlying.get())
-        def set(a: A): Future[Unit]              = Future.successful(underlying.set(a))
-        def update(f: A => A): Future[Unit]      = Future.successful {
-          var updated = false
-          while !updated do {
-            val current = underlying.get()
-            updated = underlying.compareAndSet(current, f(current))
-          }
-        }
-        def modify[B](f: A => (A, B)): Future[B] = Future.successful {
-          var result: B = null.asInstanceOf[B]
-          var updated   = false
-          while !updated do {
-            val current   = underlying.get()
-            val (newA, b) = f(current)
-            if underlying.compareAndSet(current, newA) then {
-              result = b
-              updated = true
-            }
-          }
-          result
-        }
-        def getAndUpdate(f: A => A): Future[A]   = Future.successful {
-          var old: A  = null.asInstanceOf[A]
-          var updated = false
-          while !updated do {
-            old = underlying.get()
-            updated = underlying.compareAndSet(old, f(old))
-          }
-          old
-        }
-      })
-
-      def start[A](fa: Future[A]): Future[Fiber[Future, A]] = {
-        val promise = Promise[Outcome[A]]()
-        fa.onComplete {
-          case scala.util.Success(a) => promise.success(Outcome.Succeeded(a))
-          case scala.util.Failure(e) => promise.success(Outcome.Errored(e))
-        }
-        Future.successful(new Fiber[Future, A] {
-          def cancel: Future[Unit]     = Future.successful(()) // Future can't be truly canceled
-          def join: Future[Outcome[A]] = promise.future
-        })
-      }
-
-      def guaranteeCase[A](fa: Future[A])(finalizer: Outcome[A] => Future[Unit]): Future[A] = {
-        fa.transformWith { result =>
-          val outcome = result match {
-            case scala.util.Success(a) => Outcome.Succeeded(a)
-            case scala.util.Failure(e) => Outcome.Errored(e)
-          }
-          finalizer(outcome).flatMap { _ =>
-            result match {
-              case scala.util.Success(a) => Future.successful(a)
-              case scala.util.Failure(e) => Future.failed(e)
-            }
-          }
-        }
-      }
-    }
 
   // Syntax extensions
   // Note: Using by-name fa for handleErrorWith to match the trait signature
