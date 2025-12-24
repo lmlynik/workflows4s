@@ -1,5 +1,6 @@
 package workflows4s.runtime.pekko
 
+import cats.effect.IO
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityTypeKey}
 import org.apache.pekko.persistence.typed.PersistenceId
@@ -33,10 +34,10 @@ class PekkoRuntimeImpl[Ctx <: WorkflowContext](
   private type Command = WorkflowBehavior.Command[Ctx]
   private val typeKey = EntityTypeKey[Command](entityName)
 
-  override def createInstance(id: String): Future[WorkflowInstance[Future, WCState[Ctx]]] = {
-    Future.successful(createInstance_(id))
+  override def createInstance(id: String): IO[WorkflowInstance[IO, WCState[Ctx]]] = {
+    IO.pure(createInstance_(id))
   }
-  override def createInstance_(id: String): WorkflowInstance[Future, WCState[Ctx]]        = {
+  override def createInstance_(id: String): WorkflowInstance[IO, WCState[Ctx]]    = {
     val instanceId = WorkflowInstanceId(templateId, id)
     PekkoWorkflowInstance(instanceId, sharding.entityRefFor(typeKey, id))
   }

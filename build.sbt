@@ -251,6 +251,9 @@ lazy val pekkoHttpVersion           = "1.3.0"
 lazy val testcontainersScalaVersion = "0.44.1"
 lazy val tapirVersion               = "1.13.3"
 lazy val circeVersion               = "0.14.15"
+lazy val zioVersion                 = "2.1.14"
+lazy val oxVersion                  = "1.0.2"
+lazy val magnumVersion              = "1.3.0"
 
 addCommandAlias("prePR", List("compile", "Test / compile", "test", "scalafmtCheckAll").mkString(";", ";", ""))
 

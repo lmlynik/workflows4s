@@ -1,0 +1,14 @@
+flowchart TD
+node0@{ shape: circle, label: "Start"}
+node1["Create Order"]
+node0 --> node1
+node2@{ shape: stadium, label: "fa:fa-envelope Approval Request"}
+node1 --> node2
+node3["Await Reviewer Assignment"]
+node2 --> node3
+node4@{ shape: stadium, label: "fa:fa-envelope Approval Decision"}
+node3 --> node4
+node5["Await Approval Decision"]
+node4 --> node5
+node6["Ship Order"]
+node5 --> node6

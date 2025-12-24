@@ -1,9 +1,8 @@
 package workflows4s.runtime.wakeup.quartz
 
-import cats.effect.IO
-import cats.effect.std.Dispatcher
 import org.quartz.*
 import workflows4s.runtime.WorkflowInstanceId
+import workflows4s.runtime.instanceengine.{Effect, UnsafeRun}
 import workflows4s.runtime.wakeup.KnockerUpper
 
 import java.time.Instant
@@ -38,7 +37,7 @@ class QuartzKnockerUpper(scheduler: Scheduler, dispatcher: Dispatcher[IO]) exten
     }
   }
 
-  override def initialize(wakeUp: WorkflowInstanceId => IO[Unit]): IO[Unit] =
-    IO.fromTry(scheduler.setWakeupContext(WakeupJob.Context(wakeUp, dispatcher)))
+  override def initialize(wakeUp: WorkflowInstanceId => F[Unit]): F[Unit] =
+    E.fromEither(scheduler.setWakeupContext(WakeupJob.Context(wakeUp, U)).toEither)
 
 }

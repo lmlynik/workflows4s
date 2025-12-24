@@ -9,7 +9,7 @@ import doobie.WeakAsync
 import workflows4s.cats.CatsEffect.given
 import workflows4s.doobie.{ByteCodec, DbWorkflowInstance, DoobieEffect}
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
-import workflows4s.runtime.{MappedWorkflowInstance, WorkflowInstance, WorkflowInstanceId, WorkflowRuntime}
+import workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId, WorkflowRuntime}
 import workflows4s.wio.WIO.Initial
 import workflows4s.wio.WorkflowContext.State
 import workflows4s.wio.{ActiveWorkflow, WCEvent, WCState, WorkflowContext}
@@ -27,16 +27,15 @@ class SqliteRuntime[Ctx <: WorkflowContext](
 ) extends WorkflowRuntime[IO, Ctx]
     with StrictLogging {
 
-  private val storage = SqliteWorkflowStorage[WCEvent[Ctx]](eventCodec)
-
   override def createInstance(id: String): IO[WorkflowInstance[IO, State[Ctx]]] = {
     val dbPath = getDatabasePath(id)
     val xa     = createTransactor(dbPath)
     for {
-      _ <- initSchema(xa, dbPath)
+      _       <- initSchema(xa, dbPath)
+      storage <- SqliteWorkflowStorage.create[WCEvent[Ctx]](xa, eventCodec)
     } yield {
       val instanceId = WorkflowInstanceId(templateId, id)
-      val base       = new DbWorkflowInstance(
+      new DbWorkflowInstance(
         instanceId,
         ActiveWorkflow(instanceId, workflow, initialState),
         storage,

@@ -11,7 +11,7 @@ import workflows4s.wio.WCState
 
 import scala.annotation.nowarn
 
-@nowarn("msg=unused local definition")
+@nowarn
 object DatabaseExample {
 
   object MyWorkflowCtx extends IOWorkflowContext {
@@ -34,12 +34,31 @@ object DatabaseExample {
     val wfInstance: IO[WorkflowInstance[IO, WCState[Ctx]]] = runtime.createInstance("1")
     // doc_end
   }
+  type Ctx = MyCtx
+
+  val transactor: Transactor[IO]           = ???
+  val storage: WorkflowStorage[IO, String] = ???
+  val templateId                           = "my-workflow"
+
+  // For actual usage, see workflows4s-doobie tests
+  // DatabaseRuntime.create takes:
+  // - workflow: WIO.Initial[IO, Ctx]
+  // - initialState: WCState[Ctx]
+  // - transactor: Transactor[IO]
+  // - engine: WorkflowInstanceEngine[IO]
+  // - eventCodec: ByteCodec[WCEvent[Ctx]]
+  // - templateId: String
+
+  // After creation:
+  // val runtime: DatabaseRuntime[Ctx] = DatabaseRuntime.create(...)
+  // val wfInstance: IO[WorkflowInstance[IO, WCState[Ctx]]] = runtime.createInstance("1")
+  // doc_end
 
   {
     // doc_postgres_start
-    given eventCodec: ByteCodec[Event] = ???
+    given eventCodec: ByteCodec[String] = ???
 
-    val storage: WorkflowStorage[Event] = new PostgresWorkflowStorage[Event]()
+    val postgresStorage: WorkflowStorage[IO, String] = new PostgresWorkflowStorage[String](transactor)
     // doc_postgres_end
   }
 

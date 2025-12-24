@@ -185,8 +185,8 @@ object WIO {
     sealed trait DurationSource[-In]
 
     object DurationSource {
-      case class Static(duration: Duration)                extends DurationSource[Any]
-      // we could support IO[Duration] but then either the logic has to be more complicated or the event has to capture release time
+      case class Static(duration: Duration) extends DurationSource[Any]
+
       case class Dynamic[-In](getDuration: In => Duration) extends DurationSource[In]
     }
   }
