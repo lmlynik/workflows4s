@@ -6,7 +6,7 @@ import cats.effect.{IO, LiftIO}
 import cats.syntax.all.*
 import cats.{Monad, ~>}
 import com.typesafe.scalalogging.StrictLogging
-import workflows4s.cats.CatsEffect.given
+import doobie.ConnectionIO
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
 import workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId}
 import workflows4s.runtime.WorkflowInstance.UnexpectedSignal

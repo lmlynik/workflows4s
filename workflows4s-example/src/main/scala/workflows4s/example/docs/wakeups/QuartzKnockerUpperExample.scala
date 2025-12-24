@@ -16,7 +16,7 @@ object QuartzKnockerUpperExample {
   scheduler.start()
 
   // Effect-polymorphic knocker-upper (works with IO, Task, Direct, etc.)
-  val knockerUpper = new QuartzKnockerUpper[IO](scheduler)
+  val knockerUpper = new QuartzKnockerUpper(scheduler, ???) // Need UnsafeRun[IO] instance
 
   val runtime: WorkflowRuntime[IO, MyWorkflowCtx] = createRuntime(knockerUpper)
 

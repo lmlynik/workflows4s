@@ -9,7 +9,7 @@ import doobie.WeakAsync
 import workflows4s.cats.CatsEffect.given
 import workflows4s.doobie.{ByteCodec, DbWorkflowInstance, DoobieEffect}
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine
-import workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId, WorkflowRuntime}
+import workflows4s.runtime.{MappedWorkflowInstance, WorkflowInstance, WorkflowInstanceId, WorkflowRuntime}
 import workflows4s.wio.WIO.Initial
 import workflows4s.wio.WorkflowContext.State
 import workflows4s.wio.{ActiveWorkflow, WCEvent, WCState, WorkflowContext}
@@ -32,10 +32,10 @@ class SqliteRuntime[Ctx <: WorkflowContext](
     val xa     = createTransactor(dbPath)
     for {
       _       <- initSchema(xa, dbPath)
-      storage <- SqliteWorkflowStorage.create[WCEvent[Ctx]](xa, eventCodec)
+      storage <- IO.pure(new SqliteWorkflowStorage[WCEvent[Ctx]](eventCodec))
     } yield {
       val instanceId = WorkflowInstanceId(templateId, id)
-      new DbWorkflowInstance(
+      val base = new DbWorkflowInstance(
         instanceId,
         ActiveWorkflow(instanceId, workflow, initialState),
         storage,

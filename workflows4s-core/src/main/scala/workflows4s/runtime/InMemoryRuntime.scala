@@ -5,7 +5,6 @@ import workflows4s.wio.*
 import workflows4s.wio.WIO.Initial
 
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /** In-memory runtime that works with any effect type F[_].
   *
