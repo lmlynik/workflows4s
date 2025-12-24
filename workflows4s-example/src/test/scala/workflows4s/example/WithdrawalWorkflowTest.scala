@@ -218,13 +218,13 @@ object WithdrawalWorkflowTest {
             logger.debug("Skipping recovery check")
           } else {
             logger.debug("Checking recovery")
-            val originalState  = actor.wf.queryState().unsafeRunSync()
+            val originalState  = actor.wf.queryState()
             val secondActor    = runtime.recover(actor.wf)
             // seems sometimes querying state from fresh actor gets flaky
             val recoveredState = eventually {
-              secondActor.queryState().unsafeRunSync()
+              secondActor.queryState()
             }
-            val _              = assert(recoveredState == originalState)
+            assert(recoveredState == originalState): Unit
           }
         }
 
@@ -303,7 +303,7 @@ object WithdrawalWorkflowTest {
         }
 
         def persistProgress(name: String): Unit = {
-          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid")
+          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid", technical = false)
         }
 
       }

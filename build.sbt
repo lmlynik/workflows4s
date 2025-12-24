@@ -4,16 +4,16 @@ lazy val `workflows4s` = (project in file("."))
   .settings(commonSettings)
   .aggregate(
     `workflows4s-core`,
-    `workflows4s-testing`,
     `workflows4s-cats`,
-    `workflows4s-zio`,
-    `workflows4s-ox`,
     `workflows4s-bpmn`,
     `workflows4s-pekko`,
     `workflows4s-example`,
     `workflows4s-doobie`,
     `workflows4s-filesystem`,
     `workflows4s-quartz`,
+    `workflows4s-ox`,
+    `workflows4s-zio`,
+    `workflows4s-testing`,
     `workflows4s-web-ui`,
     `workflows4s-web-ui-bundle`,
     `workflows4s-web-api-shared`.js,
@@ -108,10 +108,10 @@ lazy val `workflows4s-pekko` = (project in file("workflows4s-pekko"))
       "org.apache.pekko" %% "pekko-cluster-typed"          % pekkoVersion,
       "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion,
       "org.apache.pekko" %% "pekko-persistence-testkit"    % pekkoVersion    % Test,
-      "org.apache.pekko" %% "pekko-persistence-jdbc"       % "1.1.0"         % Test,
+      "org.apache.pekko" %% "pekko-persistence-jdbc"       % "1.1.1"         % Test,
       "com.h2database"    % "h2"                           % "2.4.240"       % Test,
       "io.r2dbc"          % "r2dbc-h2"                     % "1.1.0.RELEASE" % Test,
-      "io.altoo"         %% "pekko-kryo-serialization"     % "1.3.0",
+      "io.altoo"         %% "pekko-kryo-serialization"     % "1.3.2",
     ),
   )
   .dependsOn(`workflows4s-cats` % "compile->compile;test->test")
@@ -124,7 +124,7 @@ lazy val `workflows4s-doobie` = (project in file("workflows4s-doobie"))
       "com.dimafeng"  %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
       "com.dimafeng"  %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
       "org.postgresql" % "postgresql"                      % "42.7.8"                   % Test,
-      "org.xerial"     % "sqlite-jdbc"                     % "3.51.0.0"                 % Test,
+      "org.xerial"     % "sqlite-jdbc"                     % "3.51.1.0"                 % Test,
     ),
   )
   .dependsOn(`workflows4s-cats` % "compile->compile;test->test")
@@ -142,13 +142,10 @@ lazy val `workflows4s-quartz` = (project in file("workflows4s-quartz"))
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.quartz-scheduler" % "quartz" % "2.5.1",
+      "org.quartz-scheduler" % "quartz" % "2.5.2",
     ),
   )
-  .dependsOn(
-    `workflows4s-core` % "compile->compile;test->test",
-    `workflows4s-cats` % "test->test",
-  )
+  .dependsOn(`workflows4s-cats` % "compile->compile;test->test")
 
 lazy val `workflows4s-web-api-shared` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -189,7 +186,7 @@ lazy val `workflows4s-web-ui` = (project in file("workflows4s-web-ui"))
       "io.circe"                      %%% "circe-core"         % circeVersion,
       "io.circe"                      %%% "circe-generic"      % circeVersion,
       "io.circe"                      %%% "circe-parser"       % circeVersion,
-      "com.softwaremill.sttp.tapir"   %%% "tapir-sttp-client4" % "1.12.3",
+      "com.softwaremill.sttp.tapir"   %%% "tapir-sttp-client4" % "1.13.3",
       "com.softwaremill.sttp.client4" %%% "cats"               % "4.0.13",
       "org.business4s"                %%% "forms4s-jsonschema" % "0.1.0",
       "org.business4s"                %%% "forms4s-tyrian"     % "0.1.0",
@@ -235,18 +232,18 @@ lazy val `workflows4s-example` = (project in file("workflows4s-example"))
       "org.http4s"           %% "http4s-dsl"                      % "0.23.33",
       "org.apache.pekko"     %% "pekko-http"                      % pekkoHttpVersion, // for interacting with the app
       "org.apache.pekko"     %% "pekko-cluster-sharding-typed"    % pekkoVersion, // for realistic example and spawning actors
-      "org.apache.pekko"     %% "pekko-persistence-jdbc"          % "1.1.1", // published locally until the release is there
-      "org.apache.pekko"     %% "pekko-serialization-jackson"     % "1.2.1",
+      "org.apache.pekko"     %% "pekko-persistence-jdbc"          % "1.2.0", // published locally until the release is there
+      "org.apache.pekko"     %% "pekko-serialization-jackson"     % "1.4.0",
       "com.h2database"        % "h2"                              % "2.4.240",
       "io.r2dbc"              % "r2dbc-h2"                        % "1.1.0.RELEASE",
-      "com.github.pjfanning" %% "pekko-http-circe"                % "3.6.0",
-      "ch.qos.logback"        % "logback-classic"                 % "1.5.21",
+      "com.github.pjfanning" %% "pekko-http-circe"                % "3.7.0",
+      "ch.qos.logback"        % "logback-classic"                 % "1.5.23",
       "org.scalamock"        %% "scalamock"                       % "7.5.2"                    % Test,
       "org.apache.pekko"     %% "pekko-actor-testkit-typed"       % pekkoVersion               % Test,
       "com.dimafeng"         %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
       "com.dimafeng"         %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
       "org.postgresql"        % "postgresql"                      % "42.7.8"                   % Test,
-      "org.xerial"            % "sqlite-jdbc"                     % "3.51.0.0"                 % Test,
+      "org.xerial"            % "sqlite-jdbc"                     % "3.51.1.0"                 % Test,
     ),
     Test / parallelExecution := false, // otherwise akka clusters clash
     publish / skip           := true,
@@ -279,7 +276,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-no-indent", "-Xmax-inlines", "64", "-explain-cyclic", "-Ydebug-cyclic"),
   libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest"       % "3.2.19" % Test,
-    "ch.qos.logback" % "logback-classic" % "1.5.21" % Test,
+    "ch.qos.logback" % "logback-classic" % "1.5.23" % Test,
   ),
   // scalafix settings
   semanticdbEnabled := true, // enable SemanticDB
@@ -298,10 +295,10 @@ lazy val commonSettings = Seq(
   Test / tpolecatExcludeOptions += ScalacOptions.warnNonUnitStatement,
 )
 
-lazy val pekkoVersion               = "1.2.1"
+lazy val pekkoVersion               = "1.4.0"
 lazy val pekkoHttpVersion           = "1.3.0"
-lazy val testcontainersScalaVersion = "0.43.6"
-lazy val tapirVersion               = "1.12.3"
+lazy val testcontainersScalaVersion = "0.44.1"
+lazy val tapirVersion               = "1.13.3"
 lazy val circeVersion               = "0.14.15"
 lazy val zioVersion                 = "2.1.14"
 lazy val oxVersion                  = "1.0.2"

@@ -16,9 +16,9 @@ import scala.concurrent.duration.*
   */
 trait IOTestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
-  protected val knockerUpper: RecordingKnockerUpper[IO] = RecordingKnockerUpper[IO]
-  val clock: TestClock                                  = TestClock()
-  val registry: InMemoryWorkflowRegistry[IO]            = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
+  protected val knockerUpper                 = RecordingKnockerUpper()
+  val clock: TestClock                       = TestClock()
+  val registry: InMemoryWorkflowRegistry[IO] = InMemoryWorkflowRegistry[IO](clock).unsafeRunSync()
 
   val engine: WorkflowInstanceEngine[IO] = WorkflowInstanceEngine.default(knockerUpper, registry, clock)
 
@@ -45,6 +45,9 @@ trait IOTestRuntimeAdapter[Ctx <: WorkflowContext] extends StrictLogging {
 
 object IOTestRuntimeAdapter {
 
+  // TODO: This trait is duplicated from TestRuntimeAdapter. Consider extracting to a common location
+  // if more shared test utilities emerge. Currently kept separate to avoid coupling between
+  // IO-based and Id-based test infrastructure.
   trait EventIntrospection[Event] {
     def getEvents: Seq[Event]
   }
@@ -57,13 +60,13 @@ object IOTestRuntimeAdapter {
         workflow: WIO.Initial[IO, Ctx],
         state: WCState[Ctx],
     ): Actor = {
-      val runtime = InMemoryRuntime.create[IO, Ctx](workflow, state, engine)
-      val inst    = runtime.createInstance("").unsafeRunSync().asInstanceOf[InMemoryWorkflowInstance[IO, Ctx]]
+      val runtime = InMemoryRuntime.create[IO, Ctx](workflow, state, engine).unsafeRunSync()
+      val inst    = runtime.createInMemoryInstance("").unsafeRunSync()
       Actor(List(), inst, runtime)
     }
 
     override def recover(first: Actor): Actor = {
-      val recovered = first.runtime.createInstance("").unsafeRunSync().asInstanceOf[InMemoryWorkflowInstance[IO, Ctx]]
+      val recovered = first.runtime.createInMemoryInstance("").unsafeRunSync()
       val events    = first.getEvents
       recovered.recover(events).unsafeRunSync()
       Actor(events, recovered, first.runtime)

@@ -3,7 +3,6 @@ package workflows4s.zio
 import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef, UnsafeRun}
 import zio.*
 
-import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 /** ZIO integration for workflows4s Effect typeclass. Provides an Effect[Task] instance that uses ZIO primitives for all operations.
@@ -23,11 +22,9 @@ object ZIOEffect {
     // Mutex implementation using ZIO Semaphore
     type Mutex = Semaphore
 
-    def createMutex: Mutex = Unsafe.unsafe { implicit u =>
-      Runtime.default.unsafe.run(Semaphore.make(1)).getOrThrow()
-    }
+    def createMutex: Task[Mutex] = Semaphore.make(1)
 
-    def withLock[A](m: Mutex)(fa: Task[A]): Task[A] =
+    def withLock[A](m: Mutex)(fa: => Task[A]): Task[A] =
       m.withPermit(fa)
 
     // Core monadic operations
@@ -43,8 +40,6 @@ object ZIOEffect {
     // Time operations
     def sleep(duration: FiniteDuration): Task[Unit] =
       ZIO.sleep(zio.Duration.fromScala(duration))
-
-    def realTimeInstant: Task[Instant] = Clock.instant
 
     // Suspension
     def delay[A](a: => A): Task[A] = ZIO.attempt(a)

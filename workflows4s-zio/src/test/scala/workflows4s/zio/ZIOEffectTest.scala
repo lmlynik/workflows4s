@@ -95,11 +95,12 @@ class ZIOEffectTest extends AnyFreeSpec with Matchers {
     }
 
     "withLock should provide mutual exclusion" in {
-      val mutex  = E.createMutex
       val result = runSync {
-        E.withLock(mutex)(E.pure(42))
+        E.flatMap(E.createMutex) { mutex =>
+          E.withLock(mutex)(E.pure(42))
+        }
       }
-      result shouldBe 42
+      result.shouldBe(42)
     }
   }
 }

@@ -3,7 +3,6 @@ package workflows4s.cats
 import cats.effect.IO
 import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
-import cats.effect.unsafe.IORuntime
 import workflows4s.runtime.instanceengine.{Effect, Fiber, Outcome, Ref, UnsafeRun}
 
 object CatsEffect {
@@ -14,9 +13,9 @@ object CatsEffect {
 
     type Mutex = Semaphore[IO]
 
-    def createMutex: Mutex = Semaphore[IO](1).unsafeRunSync()
+    def createMutex: IO[Mutex] = Semaphore[IO](1)
 
-    def withLock[A](m: Mutex)(fa: IO[A]): IO[A] = m.permit.use(_ => fa)
+    def withLock[A](m: Mutex)(fa: => IO[A]): IO[A] = m.permit.use(_ => fa)
 
     def pure[A](a: A): IO[A]                                                = IO.pure(a)
     def flatMap[A, B](fa: IO[A])(f: A => IO[B]): IO[B]                      = fa.flatMap(f)
@@ -24,7 +23,6 @@ object CatsEffect {
     def raiseError[A](e: Throwable): IO[A]                                  = IO.raiseError(e)
     def handleErrorWith[A](fa: => IO[A])(f: Throwable => IO[A]): IO[A]      = fa.handleErrorWith(f)
     def sleep(duration: scala.concurrent.duration.FiniteDuration): IO[Unit] = IO.sleep(duration)
-    def realTimeInstant: IO[java.time.Instant]                              = IO.realTimeInstant
     def delay[A](a: => A): IO[A]                                            = IO.delay(a)
 
     def ref[A](initial: A): IO[Ref[IO, A]] = cats.effect.Ref[IO].of(initial).map { catsRef =>
@@ -40,10 +38,10 @@ object CatsEffect {
     def start[A](fa: IO[A]): IO[Fiber[IO, A]] = fa.start.map { catsFiber =>
       new Fiber[IO, A] {
         def cancel: IO[Unit]     = catsFiber.cancel
-        def join: IO[Outcome[A]] = catsFiber.join.map {
-          case cats.effect.kernel.Outcome.Succeeded(fa) => Outcome.Succeeded(fa.unsafeRunSync())
-          case cats.effect.kernel.Outcome.Errored(e)    => Outcome.Errored(e)
-          case cats.effect.kernel.Outcome.Canceled()    => Outcome.Canceled
+        def join: IO[Outcome[A]] = catsFiber.join.flatMap {
+          case cats.effect.kernel.Outcome.Succeeded(fa) => fa.map(Outcome.Succeeded(_))
+          case cats.effect.kernel.Outcome.Errored(e)    => IO.pure(Outcome.Errored(e))
+          case cats.effect.kernel.Outcome.Canceled()    => IO.pure(Outcome.Canceled)
         }
       }
     }
@@ -57,9 +55,9 @@ object CatsEffect {
     }
   }
 
-  /** UnsafeRun instance for cats.effect.IO. Requires an IORuntime to execute.
+  /** UnsafeRun instance for cats.effect.IO. Uses IO's built-in unsafeRunSync method.
     */
-  given ioUnsafeRun(using runtime: IORuntime): UnsafeRun[IO] = new UnsafeRun[IO] {
+  given ioUnsafeRun: UnsafeRun[IO] = new UnsafeRun[IO] {
     def unsafeRunSync[A](fa: IO[A]): A = fa.unsafeRunSync()
   }
 }

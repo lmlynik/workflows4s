@@ -8,8 +8,6 @@ import workflows4s.wio.model.{WIOExecutionProgress, WIOMeta}
 
 object ExecutionProgressEvaluator {
 
-  /** Now generic over F to match the WIO signature.
-    */
   def run[F[_], Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](
       wio: WIO[F, In, Err, Out, Ctx],
       input: Option[In],
@@ -131,7 +129,7 @@ object ExecutionProgressEvaluator {
     )
 
     def onAwaitingTime(wio: WIO.AwaitingTime[F, Ctx, In, Err, Out]): Result =
-      WIOExecutionProgress.Timer(WIOMeta.Timer(None, wio.resumeAt.some, None), result)
+      WIOExecutionProgress.Timer(WIOMeta.Timer(None, wio.resumeAt.some, None), result) // TODO persist duration and name
 
     def onExecuted[In1](wio: WIO.Executed[F, Ctx, Err, Out, In1]): Result = {
       val res = ExecutedResult(wio.output, wio.index).some
@@ -160,8 +158,16 @@ object ExecutionProgressEvaluator {
       val elemModel     = new ExecProgressVisitor(wio.elemWorkflow, None, None, None).run.toModel
       val subProgresses = input
         .map(wio.state)
+        .map(_.map { case (elemId, state) => elemId -> ExecutionProgressEvaluator.run(state, None, None) })
         .getOrElse(Map.empty)
-        .map { case (elemId, state) => elemId -> ExecutionProgressEvaluator.run(state, None, None) }
+      // We could tuple-in the interim state, but the ordering is hard to keep - if the incorporating logic is order-dependent,
+      // and if we do it naively here, we will have discrepancy between execution and collected progress.
+      // We could also expose only the last interim state, which is slightly simpler but comes with the same problem.
+      // So for now we don't expose interim states at all.
+      // Proper implementation could be:
+      //  1. Convert subProgresses into ExecutionProgress[(Option[InterimState], InnerState)] (all interim empty)
+      //  2. Traverse them, setting interim state for the one with the next index value (kept in ExecutedResult)
+      //  3. Repeat until nothing can be set anymore.
 
       WIOExecutionProgress.ForEach(result, elemModel, subProgresses, wio.meta)
     }

@@ -18,11 +18,14 @@ object WIO {
 
   type IHandleSignal[F[_], -In, +Err, +Out <: WCState[Ctx], Ctx <: WorkflowContext] = HandleSignal[F, Ctx, In, Out, Err, ?, ?, ?]
 
+  // Experimental approach to exposing concrete subtypes.
+  // We don't want to expose concrete impls because they have way too many type params.
+  // Alternatively, this could be a sealed trait extending WIO
   case class HandleSignal[F[_], Ctx <: WorkflowContext, -In, +Out <: WCState[Ctx], +Err, Sig, Resp, Evt](
       sigDef: SignalDef[Sig, Resp],
       sigHandler: SignalHandler[F, Sig, Evt, In],
       evtHandler: EventHandler[In, (Either[Err, Out], Resp), WCEvent[Ctx], Evt],
-      meta: HandleSignal.Meta,
+      meta: HandleSignal.Meta, // TODO here and everywhere else, we could use WIOMeta directly
   ) extends WIO[F, In, Err, Out, Ctx] {
 
     def toInterruption(using ev: WCState[Ctx] <:< In): Interruption[F, Ctx, Err, Out] =
@@ -122,7 +125,9 @@ object WIO {
       branches: Vector[Branch[F, In, Err, Out, Ctx, ?]],
       name: Option[String],
       selected: Option[Int],
-  ) extends WIO[F, In, Err, Out, Ctx]
+  ) extends WIO[F, In, Err, Out, Ctx] {
+    require(selected.forall(branches.indices.contains))
+  }
 
   case class Embedded[F[_], Ctx <: WorkflowContext, -In, +Err, InnerCtx <: WorkflowContext, InnerOut <: WCState[InnerCtx], MappingOutput[_ <: WCState[
     InnerCtx,
@@ -131,6 +136,7 @@ object WIO {
       embedding: WorkflowEmbedding.Aux[InnerCtx, Ctx, MappingOutput, In],
   ) extends WIO[F, In, Err, MappingOutput[InnerOut], Ctx]
 
+  // do we need imperative variant?
   case class HandleInterruption[F[_], Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx]](
       base: WIO[F, In, Err, Out, Ctx],
       interruption: WIO[F, WCState[Ctx], Err, Out, Ctx],
@@ -233,12 +239,16 @@ object WIO {
       Interruption(f(handler), tpe)
   }
 
+  // This could also allow for raising errors.
   case class Checkpoint[F[_], Ctx <: WorkflowContext, -In, +Err, Out <: WCState[Ctx], Evt](
       base: WIO[F, In, Err, Out, Ctx],
       genEvent: (In, Out) => F[Evt],
       eventHandler: EventHandler[In, Out, WCEvent[Ctx], Evt],
   ) extends WIO[F, In, Err, Out, Ctx]
 
+  // This could also allow for optionality (do X if event is present,
+  // do Y otherwise), but the implementation might be a bit convoluted, hence left for later.
+  // This could also allow for raising errors.
   case class Recovery[F[_], Ctx <: WorkflowContext, -In, +Err, +Out <: WCState[Ctx], Evt](
       eventHandler: EventHandler[In, Out, WCEvent[Ctx], Evt],
   ) extends WIO[F, In, Err, Out, Ctx]

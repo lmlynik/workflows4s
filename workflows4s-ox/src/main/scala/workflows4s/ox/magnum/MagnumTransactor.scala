@@ -52,7 +52,7 @@ object MagnumTransactor {
       password: String,
       maxPoolSize: Int = 10,
       connectionTimeout: Long = 30000, // 30 seconds
-      idleTimeout: Long = 600000, // 10 minutes
+      idleTimeout: Long = 600000,      // 10 minutes
   ): HikariDataSource = {
     val config = new HikariConfig()
     config.setJdbcUrl(jdbcUrl)

@@ -1,7 +1,6 @@
 package workflows4s.example.docs.wakeups
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import workflows4s.cats.CatsEffect.{ioEffect, ioUnsafeRun}
 import workflows4s.example.docs.wakeups.common.*
 import workflows4s.runtime.WorkflowRuntime
@@ -16,6 +15,7 @@ object QuartzKnockerUpperExample {
   scheduler.start()
 
   // Effect-polymorphic knocker-upper (works with IO, Task, Direct, etc.)
+  // Uses context bounds for Effect[IO] and UnsafeRun[IO] from CatsEffect imports
   val knockerUpper = new QuartzKnockerUpper[IO](scheduler)
 
   val runtime: WorkflowRuntime[IO, MyWorkflowCtx] = createRuntime(knockerUpper)

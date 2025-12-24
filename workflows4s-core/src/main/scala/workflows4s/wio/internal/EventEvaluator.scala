@@ -7,18 +7,24 @@ import workflows4s.runtime.instanceengine.Effect
 
 object EventEvaluator {
 
-  /** Entry point updated to support F[_] and the full type stack.
-    */
   def handleEvent[F[_], Ctx <: WorkflowContext, In, Err, Out <: WCState[Ctx]](
       event: WCEvent[Ctx],
       wio: WIO[F, In, Err, Out, Ctx],
       state: In,
   )(using E: Effect[F]): EventResponse[F, Ctx] = {
-    // Infer the static state to pass to the visitor
-    val lastSeen = GetStateEvaluator.extractLastState(wio, state, state.asInstanceOf[WCState[Ctx]]).getOrElse(state.asInstanceOf[WCState[Ctx]])
+    // Cast In to WCState[Ctx] for state extraction
+    // SAFETY: Called from Interpreter with Initial workflows where In =:= WCState[Ctx]
+    val stateAsWCState: WCState[Ctx] = state.asInstanceOf[WCState[Ctx]]
+
+    val lastSeen = GetStateEvaluator.extractLastState(wio, state, stateAsWCState).getOrElse(stateAsWCState)
 
     runVisitor(wio, event, state, lastSeen, 0)
-      .map(execution => EventResponse.Ok(execution.wio.asInstanceOf[WIO.Initial[F, Ctx]]))
+      .map { execution =>
+        // Type narrowing to Initial workflow
+        // SAFETY: Event handling produces Initial workflows (In=Any, Err=Nothing, Out=WCState[Ctx])
+        val initialWio: WIO.Initial[F, Ctx] = execution.wio.asInstanceOf[WIO.Initial[F, Ctx]]
+        EventResponse.Ok(initialWio)
+      }
       .getOrElse(EventResponse.UnexpectedEvent())
   }
 
@@ -58,10 +64,10 @@ object EventEvaluator {
       wio.startedEventHandler
         .detect(event)
         .map(started => {
-          val releaseTime = wio.getReleaseTime(started, input)
-          WIO.AwaitingTime(releaseTime, wio.releasedEventHandler)
+          val releaseTime                         = wio.getReleaseTime(started, input)
+          val awaiting: WIO[F, In, Err, Out, Ctx] = WIO.AwaitingTime(releaseTime, wio.releasedEventHandler)
+          WFExecution.Partial(awaiting)
         })
-        .map(x => WFExecution.Partial(x.asInstanceOf[WIO[F, In, Err, Out, Ctx]]))
     }
 
     def onEmbedded[InnerCtx <: WorkflowContext, InnerOut <: WCState[InnerCtx], MappingOutput[_ <: WCState[InnerCtx]] <: WCState[Ctx]](

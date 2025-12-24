@@ -1,0 +1,103 @@
+package workflows4s.runtime.instanceengine
+
+import scala.concurrent.{ExecutionContext, Future, Promise, blocking}
+import java.util.concurrent.atomic.AtomicReference
+
+/** Effect instance for scala.concurrent.Future (asynchronous execution).
+  */
+object FutureEffect {
+
+  given futureEffect(using ec: ExecutionContext): Effect[Future] =
+    new Effect[Future] {
+
+      type Mutex = java.util.concurrent.Semaphore
+
+      def createMutex: Future[Mutex] = Future.successful(new java.util.concurrent.Semaphore(1))
+
+      def withLock[A](m: Mutex)(fa: => Future[A]): Future[A] = {
+        // Acquire lock synchronously, then start the effect
+        m.acquire()
+        // Now fa is evaluated (starting the Future) only after lock is acquired
+        val result =
+          try fa
+          catch {
+            case e: Throwable =>
+              m.release()
+              throw e
+          }
+        result.andThen { case _ => m.release() }
+      }
+
+      def pure[A](a: A): Future[A]                                                   = Future.successful(a)
+      def flatMap[A, B](fa: Future[A])(f: A => Future[B]): Future[B]                 = fa.flatMap(f)
+      def map[A, B](fa: Future[A])(f: A => B): Future[B]                             = fa.map(f)
+      def raiseError[A](e: Throwable): Future[A]                                     = Future.failed(e)
+      def handleErrorWith[A](fa: => Future[A])(f: Throwable => Future[A]): Future[A] =
+        fa.recoverWith { case e => f(e) }
+      def sleep(duration: scala.concurrent.duration.FiniteDuration): Future[Unit]    =
+        Future(blocking(Thread.sleep(duration.toMillis)))
+      def delay[A](a: => A): Future[A]                                               = Future(a)
+
+      def ref[A](initial: A): Future[Ref[Future, A]] = Future.successful(new Ref[Future, A] {
+        private val underlying                   = new AtomicReference[A](initial)
+        def get: Future[A]                       = Future.successful(underlying.get())
+        def set(a: A): Future[Unit]              = Future.successful(underlying.set(a))
+        def update(f: A => A): Future[Unit]      = Future.successful {
+          var updated = false
+          while !updated do {
+            val current = underlying.get()
+            updated = underlying.compareAndSet(current, f(current))
+          }
+        }
+        def modify[B](f: A => (A, B)): Future[B] = Future.successful {
+          var result: B = null.asInstanceOf[B]
+          var updated   = false
+          while !updated do {
+            val current   = underlying.get()
+            val (newA, b) = f(current)
+            if underlying.compareAndSet(current, newA) then {
+              result = b
+              updated = true
+            }
+          }
+          result
+        }
+        def getAndUpdate(f: A => A): Future[A]   = Future.successful {
+          var old: A  = null.asInstanceOf[A]
+          var updated = false
+          while !updated do {
+            old = underlying.get()
+            updated = underlying.compareAndSet(old, f(old))
+          }
+          old
+        }
+      })
+
+      def start[A](fa: Future[A]): Future[Fiber[Future, A]] = {
+        val promise = Promise[Outcome[A]]()
+        fa.onComplete {
+          case scala.util.Success(a) => promise.success(Outcome.Succeeded(a))
+          case scala.util.Failure(e) => promise.success(Outcome.Errored(e))
+        }
+        Future.successful(new Fiber[Future, A] {
+          def cancel: Future[Unit]     = Future.successful(()) // Future can't be truly canceled
+          def join: Future[Outcome[A]] = promise.future
+        })
+      }
+
+      def guaranteeCase[A](fa: Future[A])(finalizer: Outcome[A] => Future[Unit]): Future[A] = {
+        fa.transformWith { result =>
+          val outcome = result match {
+            case scala.util.Success(a) => Outcome.Succeeded(a)
+            case scala.util.Failure(e) => Outcome.Errored(e)
+          }
+          finalizer(outcome).flatMap { _ =>
+            result match {
+              case scala.util.Success(a) => Future.successful(a)
+              case scala.util.Failure(e) => Future.failed(e)
+            }
+          }
+        }
+      }
+    }
+}

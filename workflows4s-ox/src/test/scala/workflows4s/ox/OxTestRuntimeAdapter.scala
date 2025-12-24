@@ -27,7 +27,7 @@ class OxTestRuntimeAdapter[Ctx <: WorkflowContext] extends EffectTestRuntimeAdap
       workflow: WIO.Initial[Direct, Ctx],
       state: WCState[Ctx],
   ): Actor = {
-    val runtime = InMemoryRuntime.create[Direct, Ctx](workflow, state, engine, "test")
+    val runtime = InMemoryRuntime.create[Direct, Ctx](workflow, state, engine, "test").run
     OxActor(List(), runtime)
   }
 
@@ -40,9 +40,9 @@ class OxTestRuntimeAdapter[Ctx <: WorkflowContext] extends EffectTestRuntimeAdap
       with EffectTestRuntimeAdapter.EventIntrospection[WCEvent[Ctx]] {
 
     val delegate: InMemoryWorkflowInstance[Direct, Ctx] = {
-      val inst = runtime.createInstance("").run
-      inst.asInstanceOf[InMemoryWorkflowInstance[Direct, Ctx]].recover(events).run
-      inst.asInstanceOf[InMemoryWorkflowInstance[Direct, Ctx]]
+      val inst = runtime.createInMemoryInstance("").run
+      inst.recover(events).run
+      inst
     }
 
     override def getEvents: Seq[WCEvent[Ctx]] = delegate.getEvents.run

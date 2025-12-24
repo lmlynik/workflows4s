@@ -8,10 +8,6 @@ import scala.annotation.nowarn
 @nowarn
 object SQLiteExample {
 
-  // SQLite runtime requires a specific internal effect type (Result)
-  // The workflow context and engine must use this internal type
-  // Below shows the conceptual pattern - see full example in tests
-
   // sqlite_start
   // Define your workflow context - the runtime handles effect type internally
   trait MyCtx extends WorkflowContext {

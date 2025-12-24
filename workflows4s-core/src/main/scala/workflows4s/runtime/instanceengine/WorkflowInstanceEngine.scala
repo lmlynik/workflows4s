@@ -12,12 +12,12 @@ import scala.annotation.unused
 
 trait WorkflowInstanceEngine[F[_]](using Effect[F]) {
   import Effect.*
-  def queryState[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): F[WCState[Ctx]]
+  def queryState[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): WCState[Ctx]
 
-  def getProgress[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): F[WIOExecutionProgress[WCState[Ctx]]]
+  def getProgress[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): WIOExecutionProgress[WCState[Ctx]]
 
   // TODO this would be better if extractable from progress
-  def getExpectedSignals[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): F[List[SignalDef[?, ?]]]
+  def getExpectedSignals[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): List[SignalDef[?, ?]]
 
   def triggerWakeup[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx]): F[WakeupResult[WCEvent[Ctx], F]]
 
@@ -34,6 +34,8 @@ trait WorkflowInstanceEngine[F[_]](using Effect[F]) {
       @unused newState: ActiveWorkflow[F, Ctx],
   ): F[Set[PostExecCommand]]
 
+  // Process event synchronously and return the new state
+  // This ensures event handling is atomic and deterministic
   def processEvent[Ctx <: WorkflowContext](workflow: ActiveWorkflow[F, Ctx], event: WCEvent[Ctx]): F[ActiveWorkflow[F, Ctx]] = this
     .handleEvent(workflow, event)
     .map(_.getOrElse(workflow))

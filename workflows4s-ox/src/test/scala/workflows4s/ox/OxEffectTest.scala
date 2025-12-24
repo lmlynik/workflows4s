@@ -90,14 +90,14 @@ class OxEffectTest extends AnyFreeSpec with Matchers {
     }
 
     "withLock should provide mutual exclusion" in {
-      val mutex  = E.createMutex
+      val mutex  = E.createMutex.run
       val result = E.withLock(mutex)(E.pure(42)).run
-      result shouldBe 42
+      result.shouldBe(42)
     }
 
     "map should transform results" in {
       val result = E.map(E.pure(21))(_ * 2).run
-      result shouldBe 42
+      result.shouldBe(42)
     }
   }
 }
