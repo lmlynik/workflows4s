@@ -177,7 +177,7 @@ class OxPostgresRegistry(
     *   Direct[Unit] effect
     */
   override def upsertInstance(
-      inst: ActiveWorkflow[?, ?],
+      inst: ActiveWorkflow[Direct, ?],
       executionStatus: ExecutionStatus,
   ): Direct[Unit] = Direct {
     val id  = inst.id

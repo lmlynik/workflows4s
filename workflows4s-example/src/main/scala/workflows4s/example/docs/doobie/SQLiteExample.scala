@@ -8,16 +8,6 @@ import scala.annotation.nowarn
 @nowarn
 object SQLiteExample {
 
-  import cats.effect.unsafe.implicits.global
-  import workflows4s.example.docs.Context.*
-  {
-    // sqlite_start
-    val workflow: WIO.Initial              = ???
-    val initialState: MyState              = ???
-    val engine: WorkflowInstanceEngine[IO] = ???
-    val eventCodec: ByteCodec[MyEventBase] = ???
-    val workdir: Path                      = ??? // Directory where database files will be created
-
   // sqlite_start
   // Define your workflow context - the runtime handles effect type internally
   trait MyCtx extends WorkflowContext {

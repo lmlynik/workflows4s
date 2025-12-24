@@ -2,7 +2,6 @@ package workflows4s.ox
 
 import workflows4s.runtime.instanceengine.{Effect, Fiber as WFiber, Outcome, Ref as WRef, UnsafeRun}
 
-import java.time.Instant
 import java.util.concurrent.Semaphore as JSemaphore
 import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.duration.FiniteDuration
@@ -28,9 +27,9 @@ object OxEffect {
     // Mutex implementation using Java Semaphore
     type Mutex = JSemaphore
 
-    def createMutex: Mutex = new JSemaphore(1)
+    def createMutex: Direct[Mutex] = Direct(new JSemaphore(1))
 
-    def withLock[A](m: Mutex)(fa: Direct[A]): Direct[A] = Direct {
+    def withLock[A](m: Mutex)(fa: => Direct[A]): Direct[A] = Direct {
       m.acquire()
       try fa.run
       finally m.release()
@@ -52,8 +51,6 @@ object OxEffect {
     def sleep(duration: FiniteDuration): Direct[Unit] = Direct {
       ox.sleep(duration)
     }
-
-    def realTimeInstant: Direct[Instant] = Direct { Instant.now() }
 
     // Suspension
     def delay[A](a: => A): Direct[A] = Direct(a)

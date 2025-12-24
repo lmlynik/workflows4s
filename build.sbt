@@ -11,6 +11,9 @@ lazy val `workflows4s` = (project in file("."))
     `workflows4s-doobie`,
     `workflows4s-filesystem`,
     `workflows4s-quartz`,
+    `workflows4s-ox`,
+    `workflows4s-zio`,
+    `workflows4s-testing`,
     `workflows4s-web-ui`,
     `workflows4s-web-ui-bundle`,
     `workflows4s-web-api-shared`.js,
@@ -33,6 +36,15 @@ lazy val `workflows4s-core` = (project in file("workflows4s-core"))
     Test / parallelExecution := false,
   )
 
+lazy val `workflows4s-testing` = (project in file("workflows4s-testing"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6",
+    ),
+  )
+  .dependsOn(`workflows4s-core` % "compile->compile;test->test")
+
 lazy val `workflows4s-cats` = (project in file("workflows4s-cats"))
   .settings(commonSettings)
   .settings(
@@ -40,7 +52,44 @@ lazy val `workflows4s-cats` = (project in file("workflows4s-cats"))
       "org.typelevel" %% "cats-effect" % "3.6.3",
     ),
   )
-  .dependsOn(`workflows4s-core` % "compile->compile;test->test")
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
+
+lazy val `workflows4s-zio` = (project in file("workflows4s-zio"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio" % zioVersion,
+    ),
+  )
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
+
+lazy val `workflows4s-ox` = (project in file("workflows4s-ox"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.softwaremill.ox"  %% "core"                            % oxVersion,
+      "com.augustnagro"      %% "magnum"                          % magnumVersion,
+      "com.augustnagro"      %% "magnumpg"                        % magnumVersion,
+      "com.zaxxer"            % "HikariCP"                        % "6.2.1",
+      "org.postgresql"        % "postgresql"                      % "42.7.8",
+      "io.circe"             %% "circe-core"                      % circeVersion,
+      "io.circe"             %% "circe-parser"                    % circeVersion,
+      "com.dimafeng"         %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
+      "com.dimafeng"         %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
+      "org.scalacheck"       %% "scalacheck"                      % "1.18.1"                   % Test,
+      "org.scalatestplus"    %% "scalacheck-1-18"                 % "3.2.19.0"                 % Test,
+    ),
+  )
+  .dependsOn(
+    `workflows4s-core`    % "compile->compile;test->test",
+    `workflows4s-testing` % "compile->compile;test->test",
+  )
 
 lazy val `workflows4s-bpmn` = (project in file("workflows4s-bpmn"))
   .settings(commonSettings)
