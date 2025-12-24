@@ -8,6 +8,8 @@ import SbtDependency from '@site/src/components/SbtDependency';
 
 ## Example
 
+The Pekko runtime uses `scala.concurrent.Future` as its effect type. Use `FutureWorkflowContext` to define your workflow context, which automatically provides the `Effect[Future]` instance.
+
 Here is an example of using `PekkoRuntime` in a workflow:
 
 ```scala file=./main/scala/workflows4s/example/docs/pekko/PekkoExample.scala start=doc_start end=doc_end

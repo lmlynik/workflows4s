@@ -1,6 +1,5 @@
 package workflows4s.runtime.pekko
 
-import cats.effect.IO
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityTypeKey}
 import org.apache.pekko.persistence.typed.PersistenceId
@@ -9,26 +8,26 @@ import workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId}
 import workflows4s.wio.WIO.Initial
 import workflows4s.wio.{WCState, WorkflowContext}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-/** Pekko runtime for workflows. Uses IO internally for workflow processing, but exposes a Future-based API for external interaction since Pekko
-  * naturally uses Futures.
+/** Pekko runtime for workflows. Uses Future for workflow processing and exposes a Future-based API for external interaction since Pekko naturally
+  * uses Futures.
   */
 trait PekkoRuntime[Ctx <: WorkflowContext] {
   def templateId: String
-  def workflow: Initial[IO, Ctx]
+  def workflow: Initial[Future, Ctx]
   def createInstance(id: String): Future[WorkflowInstance[Future, WCState[Ctx]]]
   def createInstance_(id: String): WorkflowInstance[Future, WCState[Ctx]]
   def initializeShard(): Unit
 }
 
 class PekkoRuntimeImpl[Ctx <: WorkflowContext](
-    val workflow: Initial[IO, Ctx],
+    val workflow: Initial[Future, Ctx],
     initialState: WCState[Ctx],
     entityName: String,
-    engine: WorkflowInstanceEngine[IO],
+    engine: WorkflowInstanceEngine[Future],
     val templateId: String,
-)(using system: ActorSystem[?])
+)(using system: ActorSystem[?], ec: ExecutionContext)
     extends PekkoRuntime[Ctx] {
   private val sharding: ClusterSharding = ClusterSharding(system)
   private type Command = WorkflowBehavior.Command[Ctx]
@@ -59,13 +58,31 @@ object PekkoRuntime {
 
   type WorkflowId = String
 
+  /** Create a PekkoRuntime for Future-based workflows.
+    *
+    * @param entityName
+    *   The name of the entity type for Pekko cluster sharding
+    * @param workflow
+    *   The workflow definition using Future as the effect type
+    * @param initialState
+    *   The initial state for new workflow instances
+    * @param engine
+    *   The workflow instance engine for Future
+    * @param system
+    *   The Pekko actor system
+    * @param ec
+    *   The execution context for Future operations
+    * @return
+    *   A PekkoRuntime instance
+    */
   def create[Ctx <: WorkflowContext](
       entityName: String,
-      workflow: Initial[IO, Ctx],
+      workflow: Initial[Future, Ctx],
       initialState: WCState[Ctx],
-      engine: WorkflowInstanceEngine[IO],
+      engine: WorkflowInstanceEngine[Future],
   )(using
       system: ActorSystem[?],
+      ec: ExecutionContext,
   ): PekkoRuntime[Ctx] = {
     // this might need customization if you have two clusters with the same entities but workflows from both in the same knocker-upper/registry.
     val templateId = s"pekko-runtime-$entityName}"
