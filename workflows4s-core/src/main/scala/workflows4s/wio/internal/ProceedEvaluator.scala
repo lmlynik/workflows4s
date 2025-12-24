@@ -67,6 +67,8 @@ object ProceedEvaluator {
       else updateChild.orElse(updateEmptyState)
     }
 
+    /** Helper to correctly recurse within the same context (Ctx).
+      */
     def recurse[I1, E1, O1 <: WCState[Ctx]](
         wio: WIO[F, I1, E1, O1, Ctx],
         in: I1,

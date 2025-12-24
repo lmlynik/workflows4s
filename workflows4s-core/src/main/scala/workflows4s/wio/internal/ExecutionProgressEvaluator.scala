@@ -96,16 +96,13 @@ object ExecutionProgressEvaluator {
     def onEmbedded[InnerCtx <: WorkflowContext, InnerOut <: WCState[InnerCtx], MappingOutput[_ <: WCState[InnerCtx]] <: WCState[Ctx]](
         wio: WIO.Embedded[F, Ctx, In, Err, InnerCtx, InnerOut, MappingOutput],
     ): Result = {
-      // We could express embedding in model but need a use case for it.
       val visitor = new ExecProgressVisitor(
         wio.inner,
         this.result.flatMap(_.mapValue(wio.embedding.unconvertState)),
         lastSeenState.flatMap(wio.embedding.unconvertState),
         input,
       )
-      visitor.run.map(x => input.map(wio.embedding.convertState(x, _))) // get is unsafe
-      // but it should always be present.
-      // if we got state inside, also the last seen state should be correct
+      visitor.run.map(x => input.map(wio.embedding.convertState(x, _)))
     }
 
     def onHandleInterruption(wio: WIO.HandleInterruption[F, Ctx, In, Err, Out]): Result = {

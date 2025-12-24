@@ -1,10 +1,9 @@
 package workflows4s.runtime.wakeup.quartz
 
 import scala.util.{Failure, Success, Try}
-import cats.effect.IO
-import cats.effect.std.Dispatcher
 import org.quartz.{Job, JobExecutionContext, Scheduler}
 import workflows4s.runtime.WorkflowInstanceId
+import workflows4s.runtime.instanceengine.UnsafeRun
 import workflows4s.runtime.wakeup.quartz.WakeupJob.{instanceIdKey, templateIdKey, wakeupContextsKey}
 
 class WakeupJob extends Job {
@@ -15,10 +14,8 @@ class WakeupJob extends Job {
     wakeup(WorkflowInstanceId(templateId, id), wakeupCtx.get)
   }
 
-  private def wakeup(id: WorkflowInstanceId, ctx: WakeupJob.Context): Unit = {
-    ctx.dispatcher.unsafeRunSync(for {
-      _ <- ctx.wakeup(id)
-    } yield ())
+  private def wakeup[F[_]](id: WorkflowInstanceId, ctx: WakeupJob.Context[F]): Unit = {
+    ctx.unsafeRun.unsafeRunSync(ctx.wakeup(id))
   }
 }
 
@@ -27,23 +24,21 @@ object WakeupJob {
   val instanceIdKey     = "instance-id"
   val templateIdKey     = "template-id"
 
-  case class Context(wakeup: WorkflowInstanceId => IO[Unit], dispatcher: Dispatcher[IO])
-
+  case class Context[F[_]](wakeup: WorkflowInstanceId => F[Unit], unsafeRun: UnsafeRun[F])
 }
 
 extension (scheduler: Scheduler) {
 
-  def getWakeupContext: Try[WakeupJob.Context] = {
+  def getWakeupContext: Try[WakeupJob.Context[?]] = {
     Option(scheduler.getContext.get(wakeupContextsKey))
-      .map(_.asInstanceOf[WakeupJob.Context]) match {
+      .map(_.asInstanceOf[WakeupJob.Context[?]]) match {
       case Some(ctx) => Success(ctx)
       case None      => Failure(new RuntimeException(s"No wakeup context available"))
     }
   }
 
-  def setWakeupContext(ctx: WakeupJob.Context): Try[Unit] = {
+  def setWakeupContext[F[_]](ctx: WakeupJob.Context[F]): Try[Unit] = {
     val ctxOpt = Option(scheduler.getContext.get(wakeupContextsKey))
-      .map(_.asInstanceOf[WakeupJob.Context])
 
     ctxOpt match {
       case Some(_) => Failure(new RuntimeException(s"Wakeup context already set"))

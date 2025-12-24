@@ -1,18 +1,17 @@
 package workflows4s.doobie.sqlite.testing
 
-import cats.Id
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.sqlite.SqliteRuntime
-import workflows4s.runtime.{MappedWorkflowInstance, WorkflowInstance}
-import workflows4s.testing.TestRuntimeAdapter
+import workflows4s.runtime.WorkflowInstance
+import workflows4s.testing.IOTestRuntimeAdapter
 import workflows4s.wio.*
 
 import java.nio.file.Path
 import scala.util.Random
 
-class SqliteRuntimeAdapter[Ctx <: WorkflowContext](workdir: Path, eventCodec: ByteCodec[WCEvent[Ctx]]) extends TestRuntimeAdapter[Ctx] {
+class SqliteRuntimeAdapter[Ctx <: WorkflowContext](workdir: Path, eventCodec: ByteCodec[WCEvent[Ctx]]) extends IOTestRuntimeAdapter[Ctx] {
 
   override type Actor = WorkflowInstance[Id, WCState[Ctx]]
 

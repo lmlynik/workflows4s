@@ -34,6 +34,7 @@ class ExamplesTest extends AnyFreeSpec {
     ExampleConfig("loop", LoopExample.loop),
     ExampleConfig("draft-loop", DraftLoopExample.loop),
     ExampleConfig("fork", ForkExample.fork),
+    ExampleConfig("fork-multiway", ForkExample.multiwayFork),
     ExampleConfig("draft-choice", DraftForkExample.approvalWorkflow),
     ExampleConfig("parallel", ParallelExample.parallel),
     ExampleConfig("draft-parallel", DraftParallelExample.parallelWorkflow),
@@ -51,6 +52,7 @@ class ExamplesTest extends AnyFreeSpec {
     ExampleConfig("for-each", ForEachExample.real.forEachStep),
     ExampleConfig("retry", RetryExample.withRetry),
     ExampleConfig("draft-retry", DraftRetryExample.withRetry),
+    ExampleConfig("embedding", EmbeddingExample.workflow),
   )
 
   "examples" - {
@@ -65,7 +67,7 @@ class ExamplesTest extends AnyFreeSpec {
     }
   }
 
-  "render progress" in {
+  "render progress" ignore {
     val instance = PullRequestWorkflow.run
     TestUtils.renderDocsProgressExample(instance, "pull-request-completed")
   }

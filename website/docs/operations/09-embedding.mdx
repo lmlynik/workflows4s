@@ -1,0 +1,56 @@
+import OperationOutputs from '@site/src/components/OperationOutputs';
+
+# Embedding Sub-Workflows
+
+Embedding allows you to compose workflows from different `WorkflowContext` types. This enables modular workflow design where reusable sub-workflows can operate with their own state and event types while being seamlessly integrated into a parent workflow.
+
+## Why Use Embedding?
+
+- **Modularity**: Create reusable workflow components with their own domain types
+- **Separation of Concerns**: Inner workflows don't need to know about the outer workflow's types
+- **Type Safety**: The compiler ensures proper state and event mapping between contexts
+
+## How It Works
+
+To embed a workflow, you need to define a `WorkflowEmbedding` that provides:
+
+1. **Event Conversion**: Bidirectional mapping between inner and outer events
+2. **State Conversion**: Bidirectional mapping between inner and outer states
+3. **Type-Level Mapping**: A match type that maps inner state types to outer state types
+
+```scala file=./main/scala/workflows4s/example/docs/EmbeddingExample.scala start=start_embedding end=end_embedding
+```
+
+<OperationOutputs name="embedding" showBpmn={false}/>
+
+## Key Components
+
+### WorkflowEmbedding Trait
+
+The `WorkflowEmbedding` trait requires implementing:
+
+| Method | Purpose |
+|--------|---------|
+| `convertEvent` | Wrap inner events in outer event type |
+| `unconvertEvent` | Extract inner events from outer events |
+| `OutputState[T]` | Type-level function mapping inner→outer state |
+| `convertState` | Transform inner state to outer state |
+| `unconvertState` | Extract inner state from outer state |
+
+### WIO.embed
+
+The `WIO.embed` method creates an embedded workflow:
+
+```scala
+WIO.embed[Input, Error, InnerOutput, InnerContext, OutputStateMapping](
+  innerWorkflow
+)(embedding)
+```
+
+## Visualization
+
+Embedded workflows render transparently in diagrams - their steps appear as part of the main flow rather than as a separate subprocess box. This keeps diagrams clean while maintaining the logical separation in code.
+
+## Real-World Example
+
+See the [Withdrawal Workflow](https://github.com/business4s/workflows4s/blob/main/workflows4s-example/src/main/scala/workflows4s/example/withdrawal/WithdrawalWorkflow.scala) for a production-ready example that embeds a `ChecksEngine` workflow to handle approval logic.

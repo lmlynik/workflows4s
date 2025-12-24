@@ -63,7 +63,6 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
     // with single shard region its tricky to inject input into behavior creation
     val typeKey = EntityTypeKey[Cmd](entityKeyPrefix + "-" + UUID.randomUUID().toString)
 
-    // TODO we dont use PekkoRuntime because it's tricky to test recovery there.
     val _             = sharding.init(
       Entity(typeKey)(createBehavior = entityContext => {
         val persistenceId = PersistenceId(entityContext.entityTypeKey.name, entityContext.entityId)
@@ -79,8 +78,6 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
               msg match {
                 case Stop(replyTo) => Behaviors.stopped(() => replyTo ! ())
                 case other         =>
-                  // classtag-based filtering doesnt work here due to union type
-                  // we are mimicking the logic of Interceptor where unhandled messaged are passed through with casting
                   target
                     .asInstanceOf[BehaviorInterceptor.ReceiveTarget[Any]](ctx, other)
                     .asInstanceOf[Behavior[RawCmd]]

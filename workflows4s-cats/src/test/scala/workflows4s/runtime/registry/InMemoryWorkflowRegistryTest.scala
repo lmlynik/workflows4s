@@ -6,6 +6,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import workflows4s.cats.CatsEffect.given
 import workflows4s.runtime.WorkflowInstanceId
+import workflows4s.runtime.instanceengine.Effect
 import workflows4s.runtime.registry.WorkflowRegistry.ExecutionStatus
 import workflows4s.testing.{TestClock, TestUtils}
 import workflows4s.wio.{ActiveWorkflow, WIO}

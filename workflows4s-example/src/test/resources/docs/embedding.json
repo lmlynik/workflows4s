@@ -1,0 +1,35 @@
+{
+  "steps" : [
+    {
+      "meta" : {
+        "name" : "Create Order",
+        "error" : null
+      },
+      "_type" : "Pure"
+    },
+    {
+      "meta" : {
+        "signalName" : "Approval Request",
+        "operationName" : "Await Reviewer Assignment",
+        "error" : null
+      },
+      "_type" : "HandleSignal"
+    },
+    {
+      "meta" : {
+        "signalName" : "Approval Decision",
+        "operationName" : "Await Approval Decision",
+        "error" : null
+      },
+      "_type" : "HandleSignal"
+    },
+    {
+      "meta" : {
+        "name" : "Ship Order",
+        "error" : null
+      },
+      "_type" : "Pure"
+    }
+  ],
+  "_type" : "Sequence"
+}

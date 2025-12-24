@@ -1,0 +1,10 @@
+flowchart TD
+node0@{ shape: circle, label: "Start"}
+node1@{ shape: hex, label: "Priority Router"}
+node0 --> node1
+node2["Process Low Priority"]
+node1 -->|"Low?"| node2
+node3["Process Medium Priority"]
+node1 -->|"Medium?"| node3
+node4["Process High Priority"]
+node1 -->|"High"| node4
