@@ -1,4 +1,4 @@
-package workflows4s.runtime.pekko
+package workflows4s.testing
 
 import workflows4s.wio.*
 
@@ -8,7 +8,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.Random
 
-/** Future-based test utilities for Pekko runtime tests.
+/** Future-based test utilities.
   */
 object FutureTestUtils {
 

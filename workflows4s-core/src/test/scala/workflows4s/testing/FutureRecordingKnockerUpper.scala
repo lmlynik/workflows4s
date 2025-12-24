@@ -1,4 +1,4 @@
-package workflows4s.runtime.pekko
+package workflows4s.testing
 
 import com.typesafe.scalalogging.StrictLogging
 import workflows4s.runtime.WorkflowInstanceId

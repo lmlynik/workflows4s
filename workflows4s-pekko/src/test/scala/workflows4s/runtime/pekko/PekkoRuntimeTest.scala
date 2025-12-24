@@ -3,7 +3,8 @@ package workflows4s.runtime.pekko
 import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
 import org.apache.pekko.persistence.jdbc.testkit.scaladsl.SchemaUtils
 import org.scalatest.freespec.AnyFreeSpecLike
-import workflows4s.wio.TestState
+import workflows4s.testing.FutureTestUtils
+import workflows4s.wio.{FutureTestCtx, TestState}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.DurationInt

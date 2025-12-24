@@ -1,10 +1,9 @@
-package workflows4s.runtime.pekko
+package workflows4s.testing
 
 import com.typesafe.scalalogging.StrictLogging
 import workflows4s.runtime.WorkflowInstance
 import workflows4s.runtime.instanceengine.{Effect, FutureEffect, WorkflowInstanceEngine}
 import workflows4s.runtime.registry.InMemoryWorkflowRegistry
-import workflows4s.testing.TestClock
 import workflows4s.wio.*
 
 import scala.concurrent.{Await, ExecutionContext, Future}
