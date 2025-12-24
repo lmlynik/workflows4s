@@ -21,8 +21,8 @@ class SqliteIOTestRuntimeAdapter[Ctx <: WorkflowContext](workdir: Path, eventCod
       workflow: WIO.Initial[IO, Ctx],
       state: WCState[Ctx],
   ): Actor = {
-    val id       = s"sqlruntime-workflow-${Random.nextLong()}"
-    val runtime  = SqliteRuntime.create[Ctx](workflow, state, eventCodec, engine, workdir).unsafeRunSync()
+    val id      = s"sqlruntime-workflow-${Random.nextLong()}"
+    val runtime = SqliteRuntime.create[Ctx](workflow, state, eventCodec, engine, workdir).unsafeRunSync()
     runtime.createInstance(id).unsafeRunSync()
   }
 

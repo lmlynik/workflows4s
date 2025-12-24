@@ -11,7 +11,8 @@ import _root_.workflows4s.wio.*
 
 /** IO-based test adapter for PostgreSQL runtime. Use this for tests that expect IOTestRuntimeAdapter.
   */
-class PostgresIOTestRuntimeAdapter[Ctx <: WorkflowContext](xa: Transactor[IO], eventCodec: ByteCodec[WCEvent[Ctx]]) extends IOTestRuntimeAdapter[Ctx] {
+class PostgresIOTestRuntimeAdapter[Ctx <: WorkflowContext](xa: Transactor[IO], eventCodec: ByteCodec[WCEvent[Ctx]])
+    extends IOTestRuntimeAdapter[Ctx] {
 
   override type Actor = WorkflowInstance[IO, WCState[Ctx]]
 
@@ -19,8 +20,8 @@ class PostgresIOTestRuntimeAdapter[Ctx <: WorkflowContext](xa: Transactor[IO], e
       workflow: WIO.Initial[IO, Ctx],
       state: WCState[Ctx],
   ): Actor = {
-    val runtime  = DatabaseRuntime.create[Ctx](workflow, state, xa, engine, eventCodec, "test")
-    val id       = StringUtils.randomAlphanumericString(12)
+    val runtime = DatabaseRuntime.create[Ctx](workflow, state, xa, engine, eventCodec, "test")
+    val id      = StringUtils.randomAlphanumericString(12)
     runtime.createInstance(id).unsafeRunSync()
   }
 

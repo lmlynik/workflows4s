@@ -35,7 +35,7 @@ class SqliteRuntime[Ctx <: WorkflowContext](
       storage <- IO.pure(new SqliteWorkflowStorage[WCEvent[Ctx]](eventCodec))
     } yield {
       val instanceId = WorkflowInstanceId(templateId, id)
-      val base = new DbWorkflowInstance(
+      val base       = new DbWorkflowInstance(
         instanceId,
         ActiveWorkflow(instanceId, workflow, initialState),
         storage,
