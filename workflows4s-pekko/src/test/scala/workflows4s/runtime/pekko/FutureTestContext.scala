@@ -1,7 +1,7 @@
 package workflows4s.runtime.pekko
 
-import _root_.workflows4s.runtime.instanceengine.{Effect, FutureEffect}
-import _root_.workflows4s.wio.{TestState, WorkflowContext}
+import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
+import workflows4s.wio.{TestState, WorkflowContext}
 
 import scala.concurrent.{ExecutionContext, Future}
 

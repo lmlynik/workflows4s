@@ -6,8 +6,8 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityRef, EntityTypeKey}
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.util.Timeout
-import _root_.workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId}
-import _root_.workflows4s.wio.*
+import workflows4s.runtime.{WorkflowInstance, WorkflowInstanceId}
+import workflows4s.wio.*
 
 import java.time.Clock
 import java.util.UUID

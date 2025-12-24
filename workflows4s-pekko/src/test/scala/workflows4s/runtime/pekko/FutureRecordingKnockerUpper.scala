@@ -1,8 +1,8 @@
 package workflows4s.runtime.pekko
 
 import com.typesafe.scalalogging.StrictLogging
-import _root_.workflows4s.runtime.WorkflowInstanceId
-import _root_.workflows4s.runtime.wakeup.KnockerUpper
+import workflows4s.runtime.WorkflowInstanceId
+import workflows4s.runtime.wakeup.KnockerUpper
 
 import java.time.Instant
 import scala.concurrent.Future

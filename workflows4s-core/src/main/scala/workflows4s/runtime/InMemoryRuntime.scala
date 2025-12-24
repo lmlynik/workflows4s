@@ -30,16 +30,17 @@ class InMemoryRuntime[F[_], Ctx <: WorkflowContext] private (
     * like getEvents.
     */
   def createInMemoryInstance(id: String): F[InMemoryWorkflowInstance[F, Ctx]] = {
-    E.flatMap(instances.modify { currentInstances =>
+    E.flatMap(instances.get) { currentInstances =>
       currentInstances.get(id) match {
-        case Some(existing) => (currentInstances, existing)
+        case Some(existing) => E.pure(existing)
         case None           =>
-          val instanceId  = WorkflowInstanceId(templateId, id)
-          val activeWf    = ActiveWorkflow(instanceId, workflow, initialState)
-          val newInstance = new InMemoryWorkflowInstance[F, Ctx](instanceId, activeWf, engine)
-          (currentInstances.updated(id, newInstance), newInstance)
+          val instanceId = WorkflowInstanceId(templateId, id)
+          val activeWf   = ActiveWorkflow(instanceId, workflow, initialState)
+          E.flatMap(InMemoryWorkflowInstance.create[F, Ctx](instanceId, activeWf, engine)) { newInstance =>
+            E.map(instances.update(_.updated(id, newInstance)))(_ => newInstance)
+          }
       }
-    })(E.pure)
+    }
   }
 }
 

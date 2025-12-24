@@ -85,7 +85,7 @@ object PekkoRuntime {
       ec: ExecutionContext,
   ): PekkoRuntime[Ctx] = {
     // this might need customization if you have two clusters with the same entities but workflows from both in the same knocker-upper/registry.
-    val templateId = s"pekko-runtime-$entityName}"
+    val templateId = s"pekko-runtime-$entityName"
     new PekkoRuntimeImpl(workflow, initialState, entityName, engine, templateId)
   }
 

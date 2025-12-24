@@ -29,11 +29,13 @@ trait Effect[F[_]] {
   // Mutex type for effect-polymorphic locking
   type Mutex
 
-  /** Create a new mutex */
-  def createMutex: Mutex
+  /** Create a new mutex within the effect context */
+  def createMutex: F[Mutex]
 
-  /** Run an effect while holding the mutex, ensuring release on completion/error */
-  def withLock[A](m: Mutex)(fa: F[A]): F[A]
+  /** Run an effect while holding the mutex, ensuring release on completion/error. Note: fa is by-name to ensure the effect is not started until the
+    * lock is acquired. This is critical for eager effect types like Future.
+    */
+  def withLock[A](m: Mutex)(fa: => F[A]): F[A]
 
   // Core monadic operations
   def pure[A](a: A): F[A]
@@ -125,9 +127,9 @@ object Effect {
   given idEffect: Effect[cats.Id] = new Effect[cats.Id] {
     type Mutex = java.util.concurrent.Semaphore
 
-    def createMutex: Mutex = new java.util.concurrent.Semaphore(1)
+    def createMutex: cats.Id[Mutex] = new java.util.concurrent.Semaphore(1)
 
-    def withLock[A](m: Mutex)(fa: cats.Id[A]): cats.Id[A] = {
+    def withLock[A](m: Mutex)(fa: => cats.Id[A]): cats.Id[A] = {
       m.acquire()
       try fa
       finally m.release()
@@ -144,17 +146,20 @@ object Effect {
       Thread.sleep(duration.toMillis)
     def delay[A](a: => A): cats.Id[A]                                                 = a
 
+    // Note: This Ref implementation uses synchronized for thread-safety.
+    // While Id is typically used in single-threaded contexts, tests may involve
+    // concurrent access, so we provide basic thread-safety guarantees.
     def ref[A](initial: A): cats.Id[Ref[cats.Id, A]] = new Ref[cats.Id, A] {
-      @volatile private var value: A            = initial
-      def get: cats.Id[A]                       = value
-      def set(a: A): cats.Id[Unit]              = { value = a }
-      def update(f: A => A): cats.Id[Unit]      = { value = f(value) }
-      def modify[B](f: A => (A, B)): cats.Id[B] = {
+      private var value: A                      = initial
+      def get: cats.Id[A]                       = synchronized { value }
+      def set(a: A): cats.Id[Unit]              = synchronized { value = a }
+      def update(f: A => A): cats.Id[Unit]      = synchronized { value = f(value) }
+      def modify[B](f: A => (A, B)): cats.Id[B] = synchronized {
         val (newA, b) = f(value)
         value = newA
         b
       }
-      def getAndUpdate(f: A => A): cats.Id[A]   = {
+      def getAndUpdate(f: A => A): cats.Id[A]   = synchronized {
         val old = value
         value = f(value)
         old

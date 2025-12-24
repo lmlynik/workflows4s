@@ -166,7 +166,7 @@ object ChecksEngineTest {
             logger.debug("Checking recovery")
             val originalState = firstActor.state
             val secondActor   = runtime.recover(firstActor.wf.asInstanceOf[runtime.Actor])
-            val _             = assert(secondActor.queryState() == originalState)
+            assert(secondActor.queryState() == originalState): Unit
           }
         }
 

@@ -1,6 +1,6 @@
 package workflows4s.runtime.pekko
 
-import _root_.workflows4s.wio.*
+import workflows4s.wio.*
 
 import java.time.Instant
 import java.util.UUID

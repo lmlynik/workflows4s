@@ -2,7 +2,6 @@ package workflows4s.cats
 
 import cats.effect.IO
 import cats.effect.std.Semaphore
-import cats.effect.unsafe.implicits.global
 import workflows4s.runtime.instanceengine.{Effect, Fiber, Outcome, Ref}
 
 object CatsEffect {
@@ -13,9 +12,9 @@ object CatsEffect {
 
     type Mutex = Semaphore[IO]
 
-    def createMutex: Mutex = Semaphore[IO](1).unsafeRunSync()
+    def createMutex: IO[Mutex] = Semaphore[IO](1)
 
-    def withLock[A](m: Mutex)(fa: IO[A]): IO[A] = m.permit.use(_ => fa)
+    def withLock[A](m: Mutex)(fa: => IO[A]): IO[A] = m.permit.use(_ => fa)
 
     def pure[A](a: A): IO[A]                                                = IO.pure(a)
     def flatMap[A, B](fa: IO[A])(f: A => IO[B]): IO[B]                      = fa.flatMap(f)
@@ -38,10 +37,10 @@ object CatsEffect {
     def start[A](fa: IO[A]): IO[Fiber[IO, A]] = fa.start.map { catsFiber =>
       new Fiber[IO, A] {
         def cancel: IO[Unit]     = catsFiber.cancel
-        def join: IO[Outcome[A]] = catsFiber.join.map {
-          case cats.effect.kernel.Outcome.Succeeded(fa) => Outcome.Succeeded(fa.unsafeRunSync())
-          case cats.effect.kernel.Outcome.Errored(e)    => Outcome.Errored(e)
-          case cats.effect.kernel.Outcome.Canceled()    => Outcome.Canceled
+        def join: IO[Outcome[A]] = catsFiber.join.flatMap {
+          case cats.effect.kernel.Outcome.Succeeded(fa) => fa.map(Outcome.Succeeded(_))
+          case cats.effect.kernel.Outcome.Errored(e)    => IO.pure(Outcome.Errored(e))
+          case cats.effect.kernel.Outcome.Canceled()    => IO.pure(Outcome.Canceled)
         }
       }
     }

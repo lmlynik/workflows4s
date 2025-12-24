@@ -12,11 +12,20 @@ object FutureEffect {
 
       type Mutex = java.util.concurrent.Semaphore
 
-      def createMutex: Mutex = new java.util.concurrent.Semaphore(1)
+      def createMutex: Future[Mutex] = Future.successful(new java.util.concurrent.Semaphore(1))
 
-      def withLock[A](m: Mutex)(fa: Future[A]): Future[A] = {
+      def withLock[A](m: Mutex)(fa: => Future[A]): Future[A] = {
+        // Acquire lock synchronously, then start the effect
         m.acquire()
-        fa.andThen { case _ => m.release() }
+        // Now fa is evaluated (starting the Future) only after lock is acquired
+        val result =
+          try fa
+          catch {
+            case e: Throwable =>
+              m.release()
+              throw e
+          }
+        result.andThen { case _ => m.release() }
       }
 
       def pure[A](a: A): Future[A]                                                   = Future.successful(a)
