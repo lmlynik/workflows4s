@@ -48,7 +48,7 @@ object WithdrawalWorkflowTest {
 
   trait Suite extends AnyFreeSpecLike with MockFactory {
 
-    def withdrawalTests(getRuntime: => TestRuntimeAdapter[WithdrawalWorkflow.Context.Ctx], skipRecovery: Boolean = false): Unit = {
+    def withdrawalTests(getRuntime: => IOTestRuntimeAdapter[WithdrawalWorkflow.Context.Ctx], skipRecovery: Boolean = false): Unit = {
 
       "happy path" in new Fixture {
         assert(actor.queryData() == WithdrawalData.Empty)
@@ -303,7 +303,7 @@ object WithdrawalWorkflowTest {
         }
 
         def persistProgress(name: String): Unit = {
-          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid")
+          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid", technical = false)
         }
 
       }

@@ -28,7 +28,9 @@ class ZIOTestRuntimeAdapter[Ctx <: WorkflowContext] extends EffectTestRuntimeAda
       workflow: WIO.Initial[Task, Ctx],
       state: WCState[Ctx],
   ): Actor = {
-    val runtime = InMemoryRuntime.create[Task, Ctx](workflow, state, engine, "test")
+    val runtime = Unsafe.unsafe { implicit u =>
+      Runtime.default.unsafe.run(InMemoryRuntime.create[Task, Ctx](workflow, state, engine, "test")).getOrThrow()
+    }
     ZIOActor(List(), runtime)
   }
 
@@ -44,9 +46,9 @@ class ZIOTestRuntimeAdapter[Ctx <: WorkflowContext] extends EffectTestRuntimeAda
       Runtime.default.unsafe
         .run {
           for {
-            inst <- runtime.createInstance("")
-            _    <- inst.asInstanceOf[InMemoryWorkflowInstance[Task, Ctx]].recover(events)
-          } yield inst.asInstanceOf[InMemoryWorkflowInstance[Task, Ctx]]
+            inst <- runtime.createInMemoryInstance("")
+            _    <- inst.recover(events)
+          } yield inst
         }
         .getOrThrow()
     }
