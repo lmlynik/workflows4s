@@ -7,6 +7,7 @@ addSbtPlugin("org.scala-js"       % "sbt-scalajs"              % "1.20.1")
 addSbtPlugin("com.github.sbt"     % "sbt-native-packager"      % "1.11.4")
 addSbtPlugin("io.spray"           % "sbt-revolver"             % "0.10.0")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.3.2")
+addSbtPlugin("org.scoverage"      % "sbt-scoverage"            % "2.3.1")
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "os-lib" % "0.11.6",
