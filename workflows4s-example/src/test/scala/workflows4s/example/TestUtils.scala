@@ -15,12 +15,17 @@ import java.nio.file.{Files, Path, Paths}
 
 object TestUtils {
 
-  val basePath = Paths
-    .get(getClass.getResource("/").toURI) // workflows4s-example/target/scala-3.4.2/test-classes
-    .getParent                            // workflows4s-example/target/scala-3.4.2
-    .getParent                            // workflows4s-example/target
-    .getParent                            // workflows4s-example
-    .resolve("src/test/resources")
+  val basePath = {
+    // Walk up from resource path until we find build.sbt (project root marker)
+    def findProjectRoot(path: Path): Path = {
+      if Files.exists(path.resolve("build.sbt")) then path
+      else if path.getParent != null then findProjectRoot(path.getParent)
+      else throw new RuntimeException("Could not find project root (build.sbt)")
+    }
+    val startPath                         = Paths.get(getClass.getResource("/").toURI)
+    val projectRoot                       = findProjectRoot(startPath)
+    projectRoot.resolve("workflows4s-example/src/test/resources")
+  }
 
   val jsonPrinter                                              = Printer.spaces2
   def renderModelToFile(wio: WIO[?, ?, ?, ?, ?], path: String) = {

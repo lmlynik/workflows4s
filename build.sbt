@@ -305,6 +305,7 @@ lazy val oxVersion                  = "1.0.2"
 lazy val magnumVersion              = "1.3.0"
 
 addCommandAlias("prePR", List("compile", "Test / compile", "test", "scalafmtCheckAll").mkString(";", ";", ""))
+addCommandAlias("coverage", ";clean;coverage;test;coverageAggregate;coverageOff")
 
 lazy val stableVersion = taskKey[String]("stableVersion")
 stableVersion := {
