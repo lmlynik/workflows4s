@@ -1,5 +1,6 @@
 package workflows4s.runtime.instanceengine
 
+import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.duration.FiniteDuration
 
 /** Outcome of an effect execution, used for guaranteeCase */
@@ -146,24 +147,29 @@ object Effect {
       Thread.sleep(duration.toMillis)
     def delay[A](a: => A): cats.Id[A]                                                 = a
 
-    // Note: This Ref implementation uses synchronized for thread-safety.
-    // While Id is typically used in single-threaded contexts, tests may involve
-    // concurrent access, so we provide basic thread-safety guarantees.
     def ref[A](initial: A): cats.Id[Ref[cats.Id, A]] = new Ref[cats.Id, A] {
-      private var value: A                      = initial
-      def get: cats.Id[A]                       = synchronized { value }
-      def set(a: A): cats.Id[Unit]              = synchronized { value = a }
-      def update(f: A => A): cats.Id[Unit]      = synchronized { value = f(value) }
-      def modify[B](f: A => (A, B)): cats.Id[B] = synchronized {
-        val (newA, b) = f(value)
-        value = newA
-        b
+      // AtomicReference is thread-safe, no need for extra synchronization for Id
+      private val underlying = new AtomicReference[A](initial)
+
+      def get: cats.Id[A]          = underlying.get()
+      def set(a: A): cats.Id[Unit] = underlying.set(a)
+
+      def update(f: A => A): cats.Id[Unit] = {
+        underlying.updateAndGet(x => f(x))
+        ()
       }
-      def getAndUpdate(f: A => A): cats.Id[A]   = synchronized {
-        val old = value
-        value = f(value)
-        old
+
+      def modify[B](f: A => (A, B)): cats.Id[B] = {
+        var res: B = null.asInstanceOf[B]
+        underlying.updateAndGet { current =>
+          val (next, b) = f(current)
+          res = b
+          next
+        }
+        res
       }
+
+      def getAndUpdate(f: A => A): cats.Id[A] = underlying.getAndUpdate(x => f(x))
     }
 
     def start[A](fa: cats.Id[A]): cats.Id[Fiber[cats.Id, A]] = {
