@@ -1,17 +1,23 @@
 package workflows4s.example.checks
 
+import cats.effect.IO
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.sqlite.testing.{SqliteRuntimeAdapter, SqliteWorkdirSuite}
 import workflows4s.example.testuitls.CirceEventCodec
 import workflows4s.example.withdrawal.checks.{ChecksEngine, ChecksEvent}
+import workflows4s.testing.Runner
 
 class SqliteChecksEngineTest extends AnyFreeSpec with SqliteWorkdirSuite with ChecksEngineTest.Suite {
 
+  // Bridge for executing IO during assertions and signals
+  implicit val runner: Runner[IO] = new Runner[IO] {
+    import cats.effect.unsafe.implicits.global
+    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
+  }
+
   "sqlite" - {
-    // skipRecovery=true: DatabaseRuntime handles recovery internally via event replay from DB.
-    // The test's recovery mechanism (getEvents + replay) doesn't apply to database-backed runtimes.
-    checkEngineTests(new SqliteRuntimeAdapter[ChecksEngine.Context](workdir, eventCodec), skipRecovery = true)
+    checkEngineTests(new SqliteRuntimeAdapter[ChecksEngine.Context](workdir, eventCodec))
   }
 
   lazy val eventCodec: ByteCodec[ChecksEvent] = CirceEventCodec.get()
