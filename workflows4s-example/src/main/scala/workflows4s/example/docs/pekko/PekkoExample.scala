@@ -26,7 +26,12 @@ object PekkoExample {
   // Create a WorkflowInstanceEngine for Future
   // The FutureEffect is provided by FutureWorkflowContext
   val engine: WorkflowInstanceEngine[Future] =
-    WorkflowInstanceEngine.builder[Future].withJavaTime().withoutWakeUps.withoutRegistering.get
+    WorkflowInstanceEngine
+      .builder[Future]
+      .withJavaTime()
+      .withoutWakeUps
+      .withoutRegistering
+      .get
 
   val workflow: WIO.Initial = ???
 

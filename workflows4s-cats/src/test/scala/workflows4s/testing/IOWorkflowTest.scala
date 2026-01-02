@@ -12,7 +12,7 @@ class IOWorkflowTest extends WorkflowRuntimeTest[IO] {
   override def unsafeRun(program: => IO[Unit]): Unit =
     program.timeout(testTimeout).unsafeRunSync()
 
-  implicit val runner: Runner[IO] = new Runner[IO] {
+  given Runner[IO] = new Runner[IO] {
     def run[A](fa: IO[A]): A = fa.unsafeRunSync()
   }
 

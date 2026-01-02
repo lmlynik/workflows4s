@@ -14,12 +14,10 @@ class TestKnockerUpper[F[_]](
 
   /** Retrieve the last requested wakeup time for a specific instance. */
   def lastRegisteredWakeup(id: WorkflowInstanceId): F[Option[Instant]] = {
-    println(s"KNOCKER-UPPER READ  $this, for $id")
     storage.get.map(_.get(id))
   }
 
   override def updateWakeup(id: WorkflowInstanceId, at: Option[Instant]): F[Unit] = {
-    println(s"KNOCKER-UPPER UPDATE $this, for $id")
     at match {
       case Some(instant) => storage.update(_ + (id -> instant))
       case None          => storage.update(_ - id)

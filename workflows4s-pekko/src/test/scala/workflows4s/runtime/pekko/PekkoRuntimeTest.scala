@@ -6,11 +6,13 @@ import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
 import workflows4s.testing.{GenericTestCtx, WorkflowRuntimeTest}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
+import org.apache.pekko.cluster.typed.Cluster
+import org.apache.pekko.cluster.typed.Join
 import scala.concurrent.duration.*
 
 class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRuntimeTest")) with WorkflowRuntimeTest[Future] {
 
-  implicit def ec: ExecutionContext = testKit.system.executionContext
+  given ExecutionContext = testKit.system.executionContext
 
   override given effect: Effect[Future] = FutureEffect.futureEffect
 
@@ -23,8 +25,6 @@ class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRunt
     // Initialize JDBC schema for Pekko Persistence before actors start
     Await.result(SchemaUtils.createIfNotExists()(using testKit.system), 10.seconds)
 
-    import org.apache.pekko.cluster.typed.Cluster
-    import org.apache.pekko.cluster.typed.Join
     val cluster = Cluster(testKit.system)
     cluster.manager ! Join(cluster.selfMember.address)
 
@@ -49,12 +49,12 @@ class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRunt
         GenericTestCtx.State.empty,
       )
 
-      unsafeRun(actor.wakeup())
-      val stateBefore = Await.result(actor.queryState(), 5.seconds)
+      pekkoAdapter.runner.run(actor.wakeup())
+      val stateBefore = pekkoAdapter.runner.run(actor.queryState())
 
       // Test the recovery logic specific to the Pekko adapter
       val recoveredActor = pekkoAdapter.recover(actor)
-      val stateAfter     = Await.result(recoveredActor.queryState(), 5.seconds)
+      val stateAfter     = pekkoAdapter.runner.run(recoveredActor.queryState())
 
       assert(stateBefore == stateAfter)
     }
