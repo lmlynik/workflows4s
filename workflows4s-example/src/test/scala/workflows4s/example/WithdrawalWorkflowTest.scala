@@ -4,7 +4,6 @@ import cats.effect.IO
 import com.typesafe.scalalogging.StrictLogging
 import org.scalamock.handlers.CallHandler2
 import org.scalamock.scalatest.MockFactory
-import org.scalatest.EitherValues.*
 import org.scalatest.Inside.inside
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.freespec.{AnyFreeSpec, AnyFreeSpecLike}
@@ -14,17 +13,23 @@ import workflows4s.example.withdrawal.*
 import workflows4s.example.withdrawal.WithdrawalService.{ExecutionResponse, Fee, Iban}
 import workflows4s.example.withdrawal.WithdrawalSignal.CreateWithdrawal
 import workflows4s.example.withdrawal.checks.*
-import workflows4s.testing.TestRuntimeAdapter
+import workflows4s.testing.{Runner, WorkflowTestAdapter}
 
 import scala.annotation.unused
 import scala.concurrent.duration.*
 import scala.jdk.DurationConverters.JavaDurationOps
+import workflows4s.cats.CatsEffect.given
+import cats.effect.unsafe.implicits.global
 
 //noinspection ForwardReference
 class WithdrawalWorkflowTest extends AnyFreeSpec with MockFactory with WithdrawalWorkflowTest.Suite {
+  given Runner[IO] = new Runner[IO] {
+    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
+  }
 
   "in-memory" - {
-    withdrawalTests(TestRuntimeAdapter.InMemory())
+    val adapter = new WorkflowTestAdapter.InMemory[IO, WithdrawalWorkflow.Context.Ctx]()
+    withdrawalTests(adapter)
   }
 
   "render model" in {
@@ -47,9 +52,11 @@ object WithdrawalWorkflowTest {
 
   trait Suite extends AnyFreeSpecLike with MockFactory {
 
-    def withdrawalTests(getRuntime: => TestRuntimeAdapter[WithdrawalWorkflow.Context.Ctx], skipRecovery: Boolean = false): Unit = {
+    def withdrawalTests(
+        testAdapter: => WorkflowTestAdapter[IO, WithdrawalWorkflow.Context.Ctx],
+    )(using runner: Runner[IO]): Unit = {
 
-      "happy path" in new Fixture {
+      "happy path" in new Fixture(testAdapter) {
         assert(actor.queryData() == WithdrawalData.Empty)
 
         withFeeCalculation(fees)
@@ -73,14 +80,14 @@ object WithdrawalWorkflowTest {
       }
       "reject" - {
 
-        "in validation" in new Fixture {
+        "in validation" in new Fixture(testAdapter) {
           actor.init(CreateWithdrawal(txId, -100, recipient))
           assert(actor.queryData() == WithdrawalData.Completed.Failed("Amount must be positive"))
           persistProgress("failed-validation")
           checkRecovery()
         }
 
-        "in funds lock" in new Fixture {
+        "in funds lock" in new Fixture(testAdapter) {
           withFeeCalculation(fees)
           withMoneyOnHold(success = false)
 
@@ -91,7 +98,7 @@ object WithdrawalWorkflowTest {
           checkRecovery()
         }
 
-        "in checks" in new Fixture {
+        "in checks" in new Fixture(testAdapter) {
           withFeeCalculation(fees)
           withMoneyOnHold(success = true)
           withChecks(List(StaticCheck(CheckResult.Rejected())))
@@ -104,7 +111,7 @@ object WithdrawalWorkflowTest {
           checkRecovery()
         }
 
-        "in execution initiation" in new Fixture {
+        "in execution initiation" in new Fixture(testAdapter) {
           withFeeCalculation(fees)
           withMoneyOnHold(success = true)
           withNoChecks()
@@ -118,7 +125,7 @@ object WithdrawalWorkflowTest {
           checkRecovery()
         }
 
-        "in execution confirmation" in new Fixture {
+        "in execution confirmation" in new Fixture(testAdapter) {
           withFeeCalculation(fees)
           withMoneyOnHold(success = true)
           withNoChecks()
@@ -137,7 +144,7 @@ object WithdrawalWorkflowTest {
       "cancel" - {
 
         // other tests require concurrent testing
-        "when waiting for execution confirmation" in new Fixture {
+        "when waiting for execution confirmation" in new Fixture(testAdapter) {
           withFeeCalculation(fees)
           withMoneyOnHold(success = true)
           withNoChecks()
@@ -152,7 +159,7 @@ object WithdrawalWorkflowTest {
           checkRecovery()
         }
 
-        "when running checks" in new Fixture {
+        "when running checks" in new Fixture(testAdapter) {
           val check = StaticCheck(CheckResult.Pending())
           withFeeCalculation(fees)
           withMoneyOnHold(success = true)
@@ -172,7 +179,7 @@ object WithdrawalWorkflowTest {
 
       }
 
-      "retry execution" in new Fixture {
+      "retry execution" in new Fixture(testAdapter) {
         assert(actor.queryData() == WithdrawalData.Empty)
 
         @unused
@@ -196,9 +203,9 @@ object WithdrawalWorkflowTest {
           actor.queryData() ==
             WithdrawalData.Checked(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem())),
         )
-        runtime.clock.advanceBy(WithdrawalWorkflow.executionRetryDelay.toScala)
-        runtime.clock.advanceBy(1.second)
-        runtime.executeDueWakeup(actor.wf)
+        adapter.clock.advanceBy(WithdrawalWorkflow.executionRetryDelay.toScala)
+        adapter.clock.advanceBy(1.second)
+        adapter.executeDueWakeup(actor.wf)
         assert(
           actor.queryData() ==
             WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
@@ -207,28 +214,23 @@ object WithdrawalWorkflowTest {
         checkRecovery()
       }
 
-      trait Fixture extends StrictLogging {
-        val runtime = getRuntime
-        val txId    = "abc"
-        val actor   = createActor()
+      class Fixture(val adapter: WorkflowTestAdapter[IO, WithdrawalWorkflow.Context.Ctx]) extends StrictLogging {
+        val txId  = "abc"
+        val actor = createActor()
 
-        def checkRecovery(): Unit = {
-          if skipRecovery then {
-            logger.debug("Skipping recovery check")
-          } else {
-            logger.debug("Checking recovery")
-            val originalState  = actor.wf.queryState()
-            val secondActor    = runtime.recover(actor.wf)
-            // seems sometimes querying state from fresh actor gets flaky
-            val recoveredState = eventually {
-              secondActor.queryState()
-            }
-            assert(recoveredState == originalState): Unit
+        def checkRecovery() = {
+          logger.debug("Checking recovery")
+          val originalState  = runner.run(actor.wf.queryState())
+          val secondActor    = adapter.recover(actor.wf)
+          // seems sometimes querying state from fresh actor gets flaky
+          val recoveredState = eventually {
+            runner.run(secondActor.queryState())
           }
+          assert(recoveredState == originalState)
         }
 
         def createActor() = {
-          val wf    = runtime
+          val wf    = adapter
             .runWorkflow(
               workflow,
               WithdrawalData.Empty,
@@ -285,24 +287,24 @@ object WithdrawalWorkflowTest {
 
         def withNoChecks() = withChecks(List())
 
-        class WithdrawalActor(val wf: runtime.Actor) {
+        class WithdrawalActor(val wf: adapter.Actor) {
           def init(req: CreateWithdrawal): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req).value
+            val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req))
           }
 
           def confirmExecution(req: WithdrawalSignal.ExecutionCompleted): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req).value
+            val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req))
           }
 
           def cancel(req: WithdrawalSignal.CancelWithdrawal): Unit = {
-            wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req).value
+            val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req))
           }
 
-          def queryData(): WithdrawalData = wf.queryState()
+          def queryData(): WithdrawalData = runner.run(wf.queryState())
         }
 
         def persistProgress(name: String): Unit = {
-          TestUtils.renderMermaidToFile(actor.wf.getProgress, s"withdrawal/progress-$name.mermaid")
+          TestUtils.renderMermaidToFile(actor.wf.getProgress.unsafeRunSync(), s"withdrawal/progress-$name.mermaid")
         }
 
       }

@@ -1,20 +1,25 @@
 package workflows4s.example
 
+import cats.effect.IO
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalamock.scalatest.MockFactory
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.postgres.testing.PostgresRuntimeAdapter
 import workflows4s.example.testuitls.{CirceEventCodec, PostgresSuite}
 import workflows4s.example.withdrawal.*
+import workflows4s.testing.Runner
 
 class PostgresWithdrawalWorkflowTest extends AnyFreeSpec with PostgresSuite with MockFactory with WithdrawalWorkflowTest.Suite {
 
+  // Define how to run IOs in this test
+  implicit val runner: Runner[IO] = new Runner[IO] {
+    import cats.effect.unsafe.implicits.global
+    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
+  }
+
   "postgres" - {
-    // skipRecovery=true: DatabaseRuntime handles recovery internally via event replay from DB.
-    // The test's recovery mechanism (getEvents + replay) doesn't apply to database-backed runtimes.
-    withdrawalTests(new PostgresRuntimeAdapter[WithdrawalWorkflow.Context.Ctx](xa, eventCodec), skipRecovery = true)
+    withdrawalTests(new PostgresRuntimeAdapter[WithdrawalWorkflow.Context.Ctx](xa, eventCodec))
   }
 
   lazy val eventCodec: ByteCodec[WithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
-
 }

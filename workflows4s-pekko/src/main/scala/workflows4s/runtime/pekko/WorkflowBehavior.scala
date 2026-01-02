@@ -91,7 +91,8 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
   val behavior: Behavior[Cmd] = Behaviors.setup { actorContext =>
     // doesn't have to be atomic but its what we have in stdlib
     val processingState: AtomicReference[ProcessingState] = new AtomicReference(ProcessingState.Free)
-    val initialWf: ActiveWorkflow[Future, Ctx]            = ActiveWorkflow(instanceId, workflow, initialState)
+
+    val initialWf: ActiveWorkflow[Future, Ctx] = ActiveWorkflow(instanceId, workflow, initialState)
     EventSourcedBehavior[Cmd, Event, St](
       persistenceId = id,
       emptyState = State(initialWf),

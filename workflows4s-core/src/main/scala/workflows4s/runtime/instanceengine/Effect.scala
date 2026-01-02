@@ -216,13 +216,4 @@ object Effect {
     def pure[F[_]](using E: Effect[F]): F[A] = E.pure(a)
   }
 
-  extension [A](opt: Option[A]) {
-    def liftTo[F[_]](ifNone: => Throwable)(using E: Effect[F]): F[A] =
-      E.fromOption(opt, ifNone)
-  }
-
-  extension [A](either: Either[Throwable, A]) {
-    def liftTo[F[_]](using E: Effect[F]): F[A] =
-      E.fromEither(either)
-  }
 }
