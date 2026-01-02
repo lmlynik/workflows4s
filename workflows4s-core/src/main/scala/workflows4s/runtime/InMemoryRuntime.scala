@@ -30,15 +30,27 @@ class InMemoryRuntime[F[_], Ctx <: WorkflowContext] private (
     * like getEvents.
     */
   def createInMemoryInstance(id: String): F[InMemoryWorkflowInstance[F, Ctx]] = {
-    E.flatMap(instances.get) { currentInstances =>
-      currentInstances.get(id) match {
-        case Some(existing) => E.pure(existing)
-        case None           =>
-          val instanceId = WorkflowInstanceId(templateId, id)
-          val activeWf   = ActiveWorkflow(instanceId, workflow, initialState)
-          E.flatMap(InMemoryWorkflowInstance.create[F, Ctx](instanceId, activeWf, engine)) { newInstance =>
-            E.map(instances.update(_.updated(id, newInstance)))(_ => newInstance)
-          }
+    E.flatMap(instances.modify { currentMap =>
+      currentMap.get(id) match {
+        case Some(existing) => (currentMap, Some(existing)) // No change
+        case None           => (currentMap, None)           // No change yet, signal creation needed
+      }
+    }) {
+      case Some(existing) => E.pure(existing)
+      case None           => createNewInstanceAtomic(id)
+    }
+  }
+
+  private def createNewInstanceAtomic(id: String): F[InMemoryWorkflowInstance[F, Ctx]] = {
+    val instanceId = WorkflowInstanceId(templateId, id)
+    val activeWf   = ActiveWorkflow(instanceId, workflow, initialState)
+
+    E.flatMap(InMemoryWorkflowInstance.create[F, Ctx](instanceId, activeWf, engine)) { newInstance =>
+      instances.modify { currentMap =>
+        currentMap.get(id) match {
+          case Some(winner) => (currentMap, winner)
+          case None         => (currentMap.updated(id, newInstance), newInstance)
+        }
       }
     }
   }
