@@ -35,11 +35,92 @@
                   "_type" : "RunIO"
                 },
                 {
-                  "meta" : {
-                    "name" : "Run Checks",
-                    "error" : null
+                  "base" : {
+                    "steps" : [
+                      {
+                        "meta" : {
+                          "name" : null,
+                          "error" : null
+                        },
+                        "_type" : "Pure"
+                      },
+                      {
+                        "base" : {
+                          "base" : {
+                            "meta" : {
+                              "name" : "Run Pending Checks",
+                              "error" : null,
+                              "description" : null
+                            },
+                            "_type" : "RunIO"
+                          },
+                          "onRestart" : {
+                            "meta" : {
+                              "duration" : "PT20S",
+                              "releaseAt" : null,
+                              "name" : "Await Retry"
+                            },
+                            "_type" : "Timer"
+                          },
+                          "meta" : {
+                            "conditionName" : "All checks completed?",
+                            "exitBranchName" : "Yes",
+                            "restartBranchName" : "No"
+                          },
+                          "_type" : "Loop"
+                        },
+                        "trigger" : {
+                          "meta" : {
+                            "duration" : "PT2M",
+                            "releaseAt" : null,
+                            "name" : "Execution Timeout"
+                          },
+                          "_type" : "Timer"
+                        },
+                        "handler" : {
+                          "meta" : {
+                            "name" : "Put In Review",
+                            "error" : null
+                          },
+                          "_type" : "Pure"
+                        },
+                        "_type" : "Interruptible"
+                      },
+                      {
+                        "branches" : [
+                          {
+                            "meta" : {
+                              "signalName" : "Review Decision",
+                              "operationName" : null,
+                              "error" : null
+                            },
+                            "_type" : "HandleSignal"
+                          },
+                          {
+                            "meta" : {
+                              "name" : "System Decision",
+                              "error" : null
+                            },
+                            "_type" : "Pure"
+                          }
+                        ],
+                        "meta" : {
+                          "name" : "Requires review?",
+                          "branches" : [
+                            {
+                              "name" : "Yes"
+                            },
+                            {
+                              "name" : "No"
+                            }
+                          ]
+                        },
+                        "_type" : "Fork"
+                      }
+                    ],
+                    "_type" : "Sequence"
                   },
-                  "_type" : "Pure"
+                  "_type" : "Checkpoint"
                 },
                 {
                   "meta" : {

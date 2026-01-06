@@ -19,6 +19,9 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
   val testContext: WithdrawalWorkflowTestContext[F] = new WithdrawalWorkflowTestContext[F]
 
+  /** Hook for persisting workflow progress diagrams. Override in subclasses to enable diagram generation. */
+  def persistProgress(progress: workflows4s.wio.model.WIOExecutionProgress[?], name: String): Unit = ()
+
   def withdrawalTests(
       testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx],
   ): Unit = {
@@ -34,8 +37,10 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
           WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
       )
 
+      persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "happy-path-1")
       actor.confirmExecution(WithdrawalSignal.ExecutionCompleted.Succeeded)
       assert(actor.queryData() == WithdrawalData.Completed.Successfully())
+      persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "happy-path-2")
 
       checkRecovery()
     }
@@ -45,6 +50,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
       "in validation" in new Fixture(testAdapter) {
         actor.init(CreateWithdrawal(txId, -100, recipient))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Amount must be positive"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "failed-validation")
         checkRecovery()
       }
 
@@ -53,6 +59,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
         actor.init(CreateWithdrawal(txId, amount, recipient))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Not enough funds on the user's account"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "failed-funds-lock")
 
         checkRecovery()
       }
@@ -63,6 +70,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
         actor.init(CreateWithdrawal(txId, amount, recipient))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Transaction rejected in checks"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "failed-checks")
 
         checkRecovery()
       }
@@ -72,6 +80,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
         actor.init(CreateWithdrawal(txId, amount, recipient))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Rejected by execution engine"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "failed-execution-initiation")
 
         checkRecovery()
       }
@@ -82,6 +91,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
         actor.init(CreateWithdrawal(txId, amount, recipient))
         actor.confirmExecution(WithdrawalSignal.ExecutionCompleted.Failed)
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Execution failed"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "failed-execution")
 
         checkRecovery()
       }
@@ -95,6 +105,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
         actor.init(CreateWithdrawal(txId, amount, recipient))
         actor.cancel(WithdrawalSignal.CancelWithdrawal("operator-1", "cancelled", acceptStartedExecution = true))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Cancelled by operator-1. Comment: cancelled"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "canceled-waiting-for-execution-confirmation")
 
         checkRecovery()
       }
@@ -109,6 +120,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
         }
         actor.cancel(WithdrawalSignal.CancelWithdrawal("operator-1", "cancelled", acceptStartedExecution = true))
         assert(actor.queryData() == WithdrawalData.Completed.Failed("Cancelled by operator-1. Comment: cancelled"))
+        persistProgress(effect.runSyncUnsafe(actor.wf.getProgress), "canceled-running-checks")
 
         checkRecovery()
       }

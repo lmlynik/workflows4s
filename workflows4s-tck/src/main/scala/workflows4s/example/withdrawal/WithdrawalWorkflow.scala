@@ -26,9 +26,9 @@ class WithdrawalWorkflow[
 
   /** Embedding for ChecksEngine workflow into WithdrawalWorkflow.
     *
-    * This embedding bridges two workflow contexts with the same effect type F but different path-dependent types.
-    * The cast in `convertState` is required because Scala's match types cannot reduce when the scrutinee is an
-    * abstract type parameter (T), even though all possible cases are covered.
+    * This embedding bridges two workflow contexts with the same effect type F but different path-dependent types. The cast in `convertState` is
+    * required because Scala's match types cannot reduce when the scrutinee is an abstract type parameter (T), even though all possible cases are
+    * covered.
     */
   val checksEmbedding: WorkflowEmbedding[ChecksCtx, Ctx, WithdrawalData.Validated] =
     new WorkflowEmbedding[ChecksCtx, Ctx, WithdrawalData.Validated] {
@@ -63,7 +63,6 @@ class WithdrawalWorkflow[
           case _                           => None
         }
     }
-
 
   def workflow: WIO[WithdrawalData.Empty, Nothing, WithdrawalData.Completed] =
     (for {
