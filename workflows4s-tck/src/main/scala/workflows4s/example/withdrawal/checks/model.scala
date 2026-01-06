@@ -1,12 +1,9 @@
 package workflows4s.example.withdrawal.checks
 
-import cats.effect.IO
 import io.circe.{Codec, Encoder, KeyDecoder, KeyEncoder}
-import sttp.tapir.Schema
+import workflows4s.runtime.instanceengine.Effect
 
-import scala.concurrent.Future
-
-sealed trait ReviewDecision derives Codec.AsObject, Schema
+sealed trait ReviewDecision derives Codec.AsObject
 object ReviewDecision {
   case object Approve extends ReviewDecision
   case object Reject  extends ReviewDecision
@@ -39,16 +36,16 @@ object CheckKey {
   given KeyDecoder[CheckKey] = KeyDecoder.decodeKeyString.map(CheckKey(_))
 }
 
-trait Check[-Data] {
+trait Check[F[_], -Data] {
   def key: CheckKey
-  def run(data: Data): IO[CheckResult]
+  def run(data: Data): F[CheckResult]
+}
 
-  /** Future-based version of run for use with FutureEffect. Default implementation converts from IO using unsafeToFuture.
-    */
-  def runFuture(data: Data): Future[CheckResult] = {
-    import cats.effect.unsafe.implicits.global
-    run(data).unsafeToFuture()
-  }
+/** Helper for creating static checks that always return the same result, useful for tests.
+  */
+case class StaticCheck[F[_]](result: CheckResult)(using F: Effect[F]) extends Check[F, Any] {
+  def key: CheckKey = CheckKey(s"static-${result.toString}")
+  def run(data: Any): F[CheckResult] = F.pure(result)
 }
 
 sealed trait ChecksState derives Encoder {
@@ -63,7 +60,7 @@ object ChecksState {
     override def results: Map[CheckKey, CheckResult] = Map()
   }
 
-  case class Pending(input: ChecksInput, results: Map[CheckKey, CheckResult])          extends InProgress {
+  case class Pending(input: ChecksInput[?], results: Map[CheckKey, CheckResult])          extends InProgress {
     private def finishedChecks: Map[CheckKey, CheckResult.Finished] = results.collect({ case (key, result: CheckResult.Finished) => key -> result })
     def pendingChecks: Set[CheckKey]                                = input.checks.keySet -- finishedChecks.keySet
 
@@ -83,21 +80,21 @@ object ChecksState {
 
 }
 
-trait ChecksInput {
+trait ChecksInput[F[_]] {
   type Data
   def data: Data
-  def checks: Map[CheckKey, Check[Data]]
+  def checks: Map[CheckKey, Check[F, Data]]
 }
 
 object ChecksInput {
 
-  def apply[D](data0: D, checks0: List[Check[D]]): ChecksInput = new ChecksInput {
+  def apply[F0[_], D](data0: D, checks0: List[Check[F0, D]]): ChecksInput[F0] = new ChecksInput[F0] {
     type Data = D
-    def data: Data                         = data0
-    def checks: Map[CheckKey, Check[Data]] = checks0.map(x => x.key -> x).toMap
+    def data: Data                            = data0
+    def checks: Map[CheckKey, Check[F0, Data]] = checks0.map(x => x.key -> x).toMap
   }
 
-  given Encoder[ChecksInput] = Encoder.instance { input =>
+  given [F[_]]: Encoder[ChecksInput[F]] = Encoder.instance { input =>
     import io.circe.syntax.*
     io.circe.Json.obj(
       "checks" -> input.checks.keys.map(_.value).asJson,

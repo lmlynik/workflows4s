@@ -1,34 +1,18 @@
 package workflows4s.example.withdrawal.checks
 
 import com.typesafe.scalalogging.StrictLogging
-import workflows4s.wio.FutureWorkflowContext
-import workflows4s.wio.SignalDef
 import workflows4s.runtime.instanceengine.Effect
+import workflows4s.wio.{SignalDef, WorkflowContext}
 
-import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
-trait FutureChecksEngine {
-  def runChecks: FutureChecksEngine.Context.WIO[ChecksInput, Nothing, ChecksState.Decided]
-}
+class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
+  val ctx: Ctx
+)(using effect: Effect[F]) extends StrictLogging {
 
-object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
-  val retryBackoff     = 20.seconds
-  val timeoutThreshold = 2.minutes
+  import ctx.WIO
 
-  type Context = Context.Ctx
-  object Context extends FutureWorkflowContext {
-    override type Event = ChecksEvent
-    override type State = ChecksState
-  }
-  object Signals {
-    val review: SignalDef[ReviewDecision, Unit] = SignalDef()
-  }
-
-  import Context.WIO
-  import Context.effect
-
-  def runChecks: WIO[ChecksInput, Nothing, ChecksState.Decided] =
+  def runChecks: WIO[ChecksInput[F], Nothing, ChecksState.Decided] =
     (refreshChecksUntilAllComplete >>> getDecision)
       .checkpointed(
         (_, state) => ChecksEvent.CheckCompleted(state.results, state.decision),
@@ -44,13 +28,13 @@ object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
       )
   }
 
-  private def refreshChecksUntilAllComplete: WIO[ChecksInput, Nothing, ChecksState.Executed] = {
+  private def refreshChecksUntilAllComplete: WIO[ChecksInput[F], Nothing, ChecksState.Executed] = {
 
-    val initialize: WIO[ChecksInput, Nothing, ChecksState.Pending] =
-      WIO.pure.makeFrom[ChecksInput].value(ci => ChecksState.Pending(ci, Map())).done
+    val initialize: WIO[ChecksInput[F], Nothing, ChecksState.Pending] =
+      WIO.pure.makeFrom[ChecksInput[F]].value(ci => ChecksState.Pending(ci, Map())).done
 
     val awaitRetry: WIO[ChecksState.Pending, Nothing, ChecksState.Pending] = WIO
-      .await[ChecksState.Pending](retryBackoff)
+      .await[ChecksState.Pending](ChecksEngine.retryBackoff)
       .persistStartThrough(started => ChecksEvent.AwaitingRefresh(started.at))(_.started)
       .persistReleaseThrough(released => ChecksEvent.RefreshReleased(released.at))(_.released)
       .autoNamed
@@ -69,22 +53,21 @@ object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
   private def runPendingChecks: WIO[ChecksState.Pending, Nothing, ChecksState.Pending] =
     WIO
       .runIO[ChecksState.Pending](state => {
-        given scala.concurrent.ExecutionContext = Context.executionContext
-        val E                                   = summon[Effect[Future]]
-        val pending                             = state.pendingChecks
-        val checks                              = state.input.checks.view.filterKeys(pending.contains).values.toList
-        E.traverse(checks)(check =>
-          E.handleErrorWith(
-            check
-              .runFuture(state.input.data)
-              .map(result => (check.key, result)),
-          )(_ => {
-            logger.error("Error when running a check, falling back to manual review.")
-            E.pure((check.key, CheckResult.RequiresReview()))
-          }),
-        ).map(results => ChecksEvent.ChecksRun(results.toMap))
+        val input = state.input.asInstanceOf[ChecksInput[F]]
+        val pending = state.pendingChecks
+        val checks  = input.checks.view.filterKeys(pending.contains).values.toList
+        effect.map(
+          effect.traverse(checks)(check =>
+            effect.handleErrorWith(
+              effect.map(check.run(input.data))(result => (check.key, result))
+            )(_ => {
+              logger.error("Error when running a check, falling back to manual review.")
+              effect.pure((check.key, CheckResult.RequiresReview()))
+            })
+          )
+        )(results => ChecksEvent.ChecksRun(results.toMap))
       })
-      .handleEvent((state, evt) => state.addResults(evt.results))
+      .handleEvent((state, evt) => state.addResults(evt.asInstanceOf[ChecksEvent.ChecksRun].results))
       .autoNamed()
 
   private val systemDecision: WIO[ChecksState.Executed, Nothing, ChecksState.Decided] =
@@ -99,7 +82,7 @@ object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
       .autoNamed
 
   private def handleReview: WIO[ChecksState.Executed, Nothing, ChecksState.Decided] = WIO
-    .handleSignal(Signals.review)
+    .handleSignal(ChecksEngine.signals)
     .using[ChecksState.Executed]
     .purely((_, sig) => ChecksEvent.ReviewDecisionTaken(sig))
     .handleEvent({ case (st, evt) =>
@@ -114,7 +97,7 @@ object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
 
   private def executionTimeout: WIO.Interruption[Nothing, ChecksState.Executed] =
     WIO.interruption
-      .throughTimeout(timeoutThreshold)
+      .throughTimeout(ChecksEngine.timeoutThreshold)
       .persistStartThrough(started => ChecksEvent.AwaitingTimeout(started.at))(_.started)
       .persistReleaseThrough(released => ChecksEvent.ExecutionTimedOut(released.at))(_.releasedAt)
       .autoNamed
@@ -133,4 +116,11 @@ object FutureChecksEngine extends FutureChecksEngine with StrictLogging {
       })
       .autoNamed
 
+}
+
+object ChecksEngine {
+  val retryBackoff     = 20.seconds
+  val timeoutThreshold = 2.minutes
+
+  val signals: SignalDef[ReviewDecision, Unit] = SignalDef()
 }
