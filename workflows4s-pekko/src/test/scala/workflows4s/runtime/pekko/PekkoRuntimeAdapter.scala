@@ -7,27 +7,27 @@ import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.util.Timeout
 import workflows4s.runtime.{DelegateWorkflowInstance, WorkflowInstance, WorkflowInstanceId}
-import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
+import workflows4s.runtime.instanceengine.{Effect, FutureEffect, LazyFuture}
 import workflows4s.runtime.pekko.PekkoRuntimeAdapter.Stop
 import workflows4s.testing.{EventIntrospection, WorkflowTestAdapter}
 import workflows4s.wio.*
 
 import java.util.UUID
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.*
 
 object PekkoRuntimeAdapter {
   case class Stop(replyTo: ActorRef[Unit])
 }
 
-/** Pekko runtime adapter for polymorphic tests, specifically implemented for Future.
+/** Pekko runtime adapter for polymorphic tests, specifically implemented for LazyFuture.
   */
 class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(implicit actorSystem: ActorSystem[?])
-    extends WorkflowTestAdapter[Future, Ctx]
+    extends WorkflowTestAdapter[LazyFuture, Ctx]
     with StrictLogging {
 
-  implicit val ec: ExecutionContext   = actorSystem.executionContext
-  implicit def effect: Effect[Future] = FutureEffect.futureEffect
+  implicit val ec: ExecutionContext        = actorSystem.executionContext
+  implicit def effect: Effect[LazyFuture] = FutureEffect.futureEffect
 
   /** Pekko messaging is slower than in-memory; override the default timeout. */
   override def testTimeout: FiniteDuration = 60.seconds
@@ -43,11 +43,11 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
       entityRef: EntityRef[Cmd],
       typeKey: EntityTypeKey[Cmd],
       override val id: WorkflowInstanceId,
-  ) extends DelegateWorkflowInstance[Future, WCState[Ctx]]
+  ) extends DelegateWorkflowInstance[LazyFuture, WCState[Ctx]]
       with EventIntrospection[WCEvent[Ctx]] {
 
     // The actual Pekko-specific instance implementation
-    override val delegate: WorkflowInstance[Future, WCState[Ctx]] =
+    override val delegate: WorkflowInstance[LazyFuture, WCState[Ctx]] =
       PekkoWorkflowInstance(
         id,
         entityRef,
@@ -62,13 +62,13 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
       Nil
     }
 
-    override def getExpectedSignals: Future[List[SignalDef[?, ?]]] = delegate.getExpectedSignals
+    override def getExpectedSignals: LazyFuture[List[SignalDef[?, ?]]] = delegate.getExpectedSignals
   }
 
   override type Actor = PekkoTestActor
 
   override def runWorkflow(
-      workflow: WIO.Initial[Future, Ctx],
+      workflow: WIO.Initial[LazyFuture, Ctx],
       state: WCState[Ctx],
   ): Actor = {
     val (entityRef, typeKey) = createEntityRef(workflow, state)
@@ -80,7 +80,7 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
     given Timeout = Timeout(5.seconds)
 
     // 1. Tell the current actor to stop
-    val isStopped = first.entityRef.ask[Unit](replyTo => Stop(replyTo))
+    val isStopped = LazyFuture.fromFuture(first.entityRef.ask[Unit](replyTo => Stop(replyTo)))
     effect.runSyncUnsafe(isStopped)
 
     // 2. Brief wait to allow the ShardRegion to realize the actor is gone
@@ -95,7 +95,7 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
   }
 
   protected def createEntityRef(
-      workflow: WIO.Initial[Future, Ctx],
+      workflow: WIO.Initial[LazyFuture, Ctx],
       state: WCState[Ctx],
   ): (EntityRef[Cmd], EntityTypeKey[Cmd]) = {
     // Use a stable string for the type key

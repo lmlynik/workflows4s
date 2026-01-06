@@ -2,21 +2,21 @@ package workflows4s.runtime.pekko
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
 import org.apache.pekko.persistence.jdbc.testkit.scaladsl.SchemaUtils
-import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
+import workflows4s.runtime.instanceengine.{Effect, FutureEffect, LazyFuture}
 import workflows4s.testing.{GenericTestCtx, WorkflowRuntimeTest}
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext}
 import org.apache.pekko.cluster.typed.Cluster
 import org.apache.pekko.cluster.typed.Join
 import scala.concurrent.duration.*
 
-class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRuntimeTest")) with WorkflowRuntimeTest[Future] {
+class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRuntimeTest")) with WorkflowRuntimeTest[LazyFuture] {
 
   given ExecutionContext = testKit.system.executionContext
 
-  override given effect: Effect[Future] = FutureEffect.futureEffect
+  override given effect: Effect[LazyFuture] = FutureEffect.futureEffect
 
-  override def unsafeRun(program: => Future[Unit]): Unit = {
+  override def unsafeRun(program: => LazyFuture[Unit]): Unit = {
     effect.runSyncUnsafe(program)
   }
 
@@ -42,7 +42,7 @@ class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRunt
 
     "should handle recovery specifically" in {
       val utils      = new TestUtils
-      val (id, step) = utils.runCustom(Future.successful(()))
+      val (id, step) = utils.runCustom(LazyFuture.successful(()))
 
       val actor = pekkoAdapter.runWorkflow(
         step.provideInput(GenericTestCtx.State.empty),

@@ -2,18 +2,17 @@ package workflows4s.example
 
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.example.withdrawal.*
-import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
+import workflows4s.runtime.instanceengine.{Effect, FutureEffect, LazyFuture}
 import workflows4s.testing.WorkflowTestAdapter
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class FutureWithdrawalWorkflowTest extends AnyFreeSpec with WithdrawalWorkflowTestSuite[Future] {
+class FutureWithdrawalWorkflowTest extends AnyFreeSpec with WithdrawalWorkflowTestSuite[LazyFuture] {
 
-  override given effect: Effect[Future] = FutureEffect.futureEffect
+  override given effect: Effect[LazyFuture] = FutureEffect.futureEffect
 
   "in-memory" - {
-    val adapter = new WorkflowTestAdapter.InMemory[Future, testContext.Context.Ctx]()
+    val adapter = new WorkflowTestAdapter.InMemory[LazyFuture, testContext.Context.Ctx]()
     withdrawalTests(adapter)
   }
 }

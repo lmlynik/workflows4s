@@ -9,7 +9,7 @@ import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import workflows4s.runtime.WorkflowInstance.UnexpectedSignal
 import workflows4s.runtime.WorkflowInstanceId
-import workflows4s.runtime.instanceengine.{FutureEffect, WorkflowInstanceEngine}
+import workflows4s.runtime.instanceengine.{LazyFuture, WorkflowInstanceEngine}
 import workflows4s.runtime.instanceengine.WorkflowInstanceEngine.PostExecCommand
 import workflows4s.wio.*
 import workflows4s.wio.internal.WakeupResult.ProcessingResult
@@ -21,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.chaining.scalaUtilChainingOps
 import scala.util.{Failure, Success}
 
-import FutureEffect.futureEffect
+import LazyFuture.lazyFutureEffect
 
 object WorkflowBehavior {
 
@@ -33,9 +33,9 @@ object WorkflowBehavior {
   def apply[Ctx <: WorkflowContext](
       instanceId: WorkflowInstanceId,
       id: PersistenceId,
-      workflow: WIO.Initial[Future, Ctx],
+      workflow: WIO.Initial[LazyFuture, Ctx],
       initialState: WCState[Ctx],
-      engine: WorkflowInstanceEngine[Future],
+      engine: WorkflowInstanceEngine[LazyFuture],
   )(using ec: ExecutionContext): Behavior[Command[Ctx]] =
     new WorkflowBehavior(instanceId, id, workflow, initialState, engine).behavior
 
@@ -59,7 +59,7 @@ object WorkflowBehavior {
     case class FollowupWakeup[Ctx <: WorkflowContext](replyTo: ActorRef[StatusReply[Unit]])    extends Command[Ctx]
   }
 
-  final case class State[Ctx <: WorkflowContext](workflow: ActiveWorkflow[Future, Ctx])
+  final case class State[Ctx <: WorkflowContext](workflow: ActiveWorkflow[LazyFuture, Ctx])
 
   sealed trait SignalResponse[+Resp]
   object SignalResponse {
@@ -72,9 +72,9 @@ object WorkflowBehavior {
 private class WorkflowBehavior[Ctx <: WorkflowContext](
     instanceId: WorkflowInstanceId,
     id: PersistenceId,
-    workflow: WIO.Initial[Future, Ctx],
+    workflow: WIO.Initial[LazyFuture, Ctx],
     initialState: WCState[Ctx],
-    engine: WorkflowInstanceEngine[Future],
+    engine: WorkflowInstanceEngine[LazyFuture],
 )(using ec: ExecutionContext)
     extends StrictLogging {
   import WorkflowBehavior.*
@@ -92,7 +92,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
     // doesn't have to be atomic but its what we have in stdlib
     val processingState: AtomicReference[ProcessingState] = new AtomicReference(ProcessingState.Free)
 
-    val initialWf: ActiveWorkflow[Future, Ctx] = ActiveWorkflow(instanceId, workflow, initialState)
+    val initialWf: ActiveWorkflow[LazyFuture, Ctx] = ActiveWorkflow(instanceId, workflow, initialState)
     EventSourcedBehavior[Cmd, Event, St](
       persistenceId = id,
       emptyState = State(initialWf),
@@ -114,7 +114,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
             Effect
               .persist[Event, St](x.event)
               .thenRun(newState => {
-                actorContext.pipeToSelf(engine.onStateChange(state.workflow, newState.workflow))({
+                actorContext.pipeToSelf(engine.onStateChange(state.workflow, newState.workflow).run)({
                   case Failure(exception) =>
                     logger.error("Error when running onStateChange hook", exception)
                     x.reply
@@ -139,7 +139,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
     import scala.concurrent.Await
     import scala.concurrent.duration.*
     Await
-      .result(engine.processEvent(state.workflow, event), 30.seconds)
+      .result(engine.processEvent(state.workflow, event).run, 30.seconds)
       .pipe(State.apply)
   }
 
@@ -151,7 +151,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
     changeStateAsync[(WCEvent[Ctx], Resp), Either[UnexpectedSignal, Resp]](
       processingState,
       actorContext,
-      state => engine.handleSignal(state.workflow, cmd.signalDef, cmd.req).map(_.toRaw),
+      state => engine.handleSignal(state.workflow, cmd.signalDef, cmd.req).run.map(_.toRaw.map(_.run)),
       cmd.replyTo,
       {
         case Some(value) => Right(value._2)
@@ -169,7 +169,7 @@ private class WorkflowBehavior[Ctx <: WorkflowContext](
     changeStateAsync[ProcessingResult[WCEvent[Ctx]], Unit](
       processingState,
       actorContext,
-      state => engine.triggerWakeup(state.workflow).map(_.toRaw),
+      state => engine.triggerWakeup(state.workflow).run.map(_.toRaw.map(_.run)),
       replyTo,
       _ => (),
       {
