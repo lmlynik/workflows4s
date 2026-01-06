@@ -17,12 +17,53 @@ class WithdrawalWorkflow[
     Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
     ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState },
 ](
-    val ctx: Ctx,
+    ctx: Ctx,
     service: WithdrawalService[F],
     checksEngine: ChecksEngine[F, ChecksCtx],
 )(using effect: Effect[F]) {
 
   import ctx.WIO
+
+  /** Embedding for ChecksEngine workflow into WithdrawalWorkflow.
+    *
+    * This embedding bridges two workflow contexts with the same effect type F but different path-dependent types.
+    * The cast in `convertState` is required because Scala's match types cannot reduce when the scrutinee is an
+    * abstract type parameter (T), even though all possible cases are covered.
+    */
+  val checksEmbedding: WorkflowEmbedding[ChecksCtx, Ctx, WithdrawalData.Validated] =
+    new WorkflowEmbedding[ChecksCtx, Ctx, WithdrawalData.Validated] {
+      override type InnerEvent = ChecksEvent
+      override type OuterEvent = WithdrawalEvent
+      override type InnerState = ChecksState
+      override type OuterState = WithdrawalData
+
+      override def convertEvent(e: ChecksEvent): WithdrawalEvent =
+        WithdrawalEvent.ChecksRun(e)
+
+      override def unconvertEvent(e: WithdrawalEvent): Option[ChecksEvent] = e match {
+        case WithdrawalEvent.ChecksRun(inner) => Some(inner)
+        case _                                => None
+      }
+
+      override type OutputState[T <: ChecksState] <: WithdrawalData = T match {
+        case ChecksState.InProgress => WithdrawalData.Checking
+        case ChecksState.Decided    => WithdrawalData.Checked
+      }
+
+      override def convertState[T <: ChecksState](s: T, input: WithdrawalData.Validated): OutputState[T] = (s match {
+        case x: ChecksState.InProgress => input.checking(x)
+        case x: ChecksState.Decided    => input.checked(x)
+      }).asInstanceOf[OutputState[T]]
+
+      override def unconvertState(outerState: WithdrawalData): Option[ChecksState] =
+        outerState match {
+          case _: WithdrawalData.Validated => Some(ChecksState.Empty)
+          case x: WithdrawalData.Checking  => Some(x.checkResults)
+          case x: WithdrawalData.Checked   => Some(x.checkResults)
+          case _                           => None
+        }
+    }
+
 
   def workflow: WIO[WithdrawalData.Empty, Nothing, WithdrawalData.Completed] =
     (for {
@@ -49,7 +90,7 @@ class WithdrawalWorkflow[
 
   private def validate: WIO[Any, WithdrawalRejection.InvalidInput, WithdrawalData.Initiated] =
     WIO
-      .handleSignal(WithdrawalWorkflow.createWithdrawalSignal)
+      .handleSignal(WithdrawalWorkflow.Signals.createWithdrawal)
       .using[Any]
       .purely { (_, signal) =>
         if signal.amount > 0 then WithdrawalAccepted(signal.txId, signal.amount, signal.recipient)
@@ -86,11 +127,10 @@ class WithdrawalWorkflow[
       .autoNamed()
 
   private def runChecks: WIO[WithdrawalData.Validated, WithdrawalRejection.RejectedInChecks, WithdrawalData.Checked] = {
-    val embedding                                                                   = WithdrawalWorkflow.checksEmbedding[F, ChecksCtx, Ctx]
     val doRunChecks: WIO[WithdrawalData.Validated, Nothing, WithdrawalData.Checked] = {
       val innerWIO = checksEngine.runChecks
         .transformInput((x: WithdrawalData.Validated) => ChecksInput(x, service.getChecks()))
-      ctx.WIO.embed(innerWIO.asInstanceOf)(embedding.asInstanceOf).asInstanceOf[WIO[WithdrawalData.Validated, Nothing, WithdrawalData.Checked]]
+      ctx.WIO.embed(innerWIO.asInstanceOf)(checksEmbedding.asInstanceOf).asInstanceOf[WIO[WithdrawalData.Validated, Nothing, WithdrawalData.Checked]]
     }
 
     val actOnDecision = WIO.pure
@@ -124,7 +164,7 @@ class WithdrawalWorkflow[
 
   private def awaitExecutionCompletion: WIO[WithdrawalData.Executed, WithdrawalRejection.RejectedByExecutionEngine, WithdrawalData.Executed] =
     WIO
-      .handleSignal(WithdrawalWorkflow.executionCompletedSignal)
+      .handleSignal(WithdrawalWorkflow.Signals.executionCompleted)
       .using[WithdrawalData.Executed]
       .purely((_, sig) => WithdrawalEvent.ExecutionCompleted(sig))
       .handleEventWithError((s, e: WithdrawalEvent.ExecutionCompleted) =>
@@ -164,7 +204,7 @@ class WithdrawalWorkflow[
 
   private def handleCancellation = {
     WIO.interruption
-      .throughSignal(WithdrawalWorkflow.cancelSignal)
+      .throughSignal(WithdrawalWorkflow.Signals.cancel)
       .handleAsync { (state, signal) =>
         def ok = WithdrawalEvent.WithdrawalCancelledByOperator(signal.operatorId, signal.comment).pure[F]
         state match {
@@ -198,43 +238,5 @@ object WithdrawalWorkflow {
     val executionCompleted = SignalDef[ExecutionCompleted, Unit]()
     val cancel             = SignalDef[CancelWithdrawal, Unit]()
   }
-
-  val createWithdrawalSignal   = Signals.createWithdrawal
-  val executionCompletedSignal = Signals.executionCompleted
-  val cancelSignal             = Signals.cancel
-
-  def checksEmbedding[
-      F[_],
-      ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState },
-      WithdrawalCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
-  ]: WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] =
-    new WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] {
-
-      override def convertEvent(e: ChecksEvent): WithdrawalEvent =
-        WithdrawalEvent.ChecksRun(e)
-
-      override def unconvertEvent(e: WithdrawalEvent): Option[ChecksEvent] = e match {
-        case WithdrawalEvent.ChecksRun(inner) => Some(inner)
-        case _                                => None
-      }
-
-      override type OutputState[T <: ChecksState] <: WithdrawalData = T match {
-        case ChecksState.InProgress => WithdrawalData.Checking
-        case ChecksState.Decided    => WithdrawalData.Checked
-      }
-
-      override def convertState[T <: ChecksState](s: T, input: WithdrawalData.Validated): OutputState[T] = (s match {
-        case x: ChecksState.InProgress => input.checking(x)
-        case x: ChecksState.Decided    => input.checked(x)
-      }).asInstanceOf[OutputState[T]]
-
-      override def unconvertState(outerState: WithdrawalData): Option[ChecksState] =
-        outerState match {
-          case _: WithdrawalData.Validated => Some(ChecksState.Empty)
-          case x: WithdrawalData.Checking  => Some(x.checkResults)
-          case x: WithdrawalData.Checked   => Some(x.checkResults)
-          case _                           => None
-        }
-    }
 
 }

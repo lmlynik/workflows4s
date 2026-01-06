@@ -8,7 +8,7 @@ import workflows4s.wio.WorkflowContext
 class DummyChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
     ctx: Ctx,
 )(using Effect[F])
-    extends ChecksEngine[F, Ctx](ctx) {
+    extends ChecksEngine[F, Ctx](ctx.asInstanceOf) {
 
   override def runChecks: ctx.WIO[ChecksInput[F], Nothing, ChecksState.Decided] =
     ctx.WIO.pure(ChecksState.Decided(Map(), Decision.ApprovedBySystem())).autoNamed

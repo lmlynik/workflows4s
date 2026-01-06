@@ -25,6 +25,4 @@ object IOWithdrawalWorkflow {
   ): WithdrawalWorkflow[IO, Context.Ctx, ChecksEngineContext.Ctx] = {
     new WithdrawalWorkflow[IO, Context.Ctx, ChecksEngineContext.Ctx](Context, service, checksEngine)
   }
-
-  val checksEmbedding = WithdrawalWorkflow.checksEmbedding[IO, ChecksEngineContext.Ctx, Context.Ctx]
 }

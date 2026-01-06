@@ -8,7 +8,7 @@ import workflows4s.wio.{SignalDef, WorkflowContext}
 import scala.concurrent.duration.DurationInt
 
 class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
-    val ctx: Ctx,
+  ctx: Ctx,
 )(using effect: Effect[F])
     extends StrictLogging {
 
@@ -68,7 +68,7 @@ class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event
                      }
         } yield ChecksEvent.ChecksRun(results.toMap)
       }
-      .handleEvent((state, evt) => state.addResults(evt.asInstanceOf[ChecksEvent.ChecksRun].results))
+      .handleEvent((state, evt) => state.addResults(evt.results))
       .autoNamed()
 
   private val systemDecision: WIO[ChecksState.Executed, Nothing, ChecksState.Decided] =

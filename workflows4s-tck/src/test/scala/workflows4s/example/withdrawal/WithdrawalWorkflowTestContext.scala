@@ -26,6 +26,4 @@ class WithdrawalWorkflowTestContext[F[_]](using E: Effect[F]) {
   ): WithdrawalWorkflow[F, Context.Ctx, ChecksContext.Ctx] = {
     new WithdrawalWorkflow[F, Context.Ctx, ChecksContext.Ctx](Context, service, checksEngine)
   }
-
-  val checksEmbedding = WithdrawalWorkflow.checksEmbedding[F, ChecksContext.Ctx, Context.Ctx]
 }

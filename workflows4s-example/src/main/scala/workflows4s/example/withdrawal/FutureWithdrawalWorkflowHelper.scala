@@ -26,6 +26,4 @@ object FutureWithdrawalWorkflowHelper {
     given workflows4s.runtime.instanceengine.Effect[Future] = FutureEffect.futureEffect(using Context.executionContext)
     new WithdrawalWorkflow[Future, Context.Ctx, ChecksEngineContext.Ctx](Context, service, checksEngine)
   }
-
-  val checksEmbedding = WithdrawalWorkflow.checksEmbedding[Future, ChecksEngineContext.Ctx, Context.Ctx]
 }
