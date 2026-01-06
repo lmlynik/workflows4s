@@ -32,7 +32,7 @@ class SqliteChecksEngineTest extends AnyFreeSpec with SqliteWorkdirSuite with Ch
           IO {
             runNum += 1
           }.as(CheckResult.Pending())
-        case _ => IO(CheckResult.Approved())
+        case _                     => IO(CheckResult.Approved())
       }
     }
 

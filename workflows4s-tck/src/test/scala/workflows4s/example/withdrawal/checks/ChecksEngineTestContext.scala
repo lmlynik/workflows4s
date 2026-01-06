@@ -8,9 +8,9 @@ import workflows4s.wio.WorkflowContext
 class ChecksEngineTestContext[F[_]](using E: Effect[F]) {
 
   object Context extends WorkflowContext {
-    override type Event   = ChecksEvent
-    override type State   = ChecksState
-    override type Eff[A]  = F[A]
+    override type Event  = ChecksEvent
+    override type State  = ChecksState
+    override type Eff[A] = F[A]
     override given effect: Effect[Eff] = E
   }
 

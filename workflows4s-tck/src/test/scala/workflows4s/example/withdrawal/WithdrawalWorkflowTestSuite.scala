@@ -13,8 +13,8 @@ import workflows4s.testing.{Runner, WorkflowTestAdapter}
 import scala.concurrent.duration.*
 import scala.jdk.DurationConverters.JavaDurationOps
 
-/** Generic test suite for WithdrawalWorkflow that works with any effect type F[_]. Extend this trait and provide the
-  * required abstract members to run the test suite with your effect type.
+/** Generic test suite for WithdrawalWorkflow that works with any effect type F[_]. Extend this trait and provide the required abstract members to run
+  * the test suite with your effect type.
   */
 trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
@@ -26,7 +26,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
   val testContext: WithdrawalWorkflowTestContext[F]
 
   def withdrawalTests(
-      testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx]
+      testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx],
   ): Unit = {
 
     "happy path" in new Fixture(testAdapter) {
@@ -37,7 +37,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
       actor.init(CreateWithdrawal(txId, amount, recipient))
       assert(
         actor.queryData() ==
-          WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId)
+          WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
       )
 
       actor.confirmExecution(WithdrawalSignal.ExecutionCompleted.Succeeded)
@@ -123,7 +123,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
     "retry execution" in new Fixture(testAdapter) {
       assert(actor.queryData() == WithdrawalData.Empty)
 
-      var retryCount = 0
+      var retryCount                                 = 0
       val executionBehavior: () => ExecutionResponse = () => {
         if retryCount == 0 then {
           retryCount += 1
@@ -138,14 +138,14 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
       actor.init(CreateWithdrawal(txId, amount, recipient))
       assert(
         actor.queryData() ==
-          WithdrawalData.Checked(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()))
+          WithdrawalData.Checked(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem())),
       )
       adapter.clock.advanceBy(WithdrawalWorkflow.executionRetryDelay.toScala)
       adapter.clock.advanceBy(1.second)
       adapter.executeDueWakeup(actor.wf)
       assert(
         actor.queryData() ==
-          WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId)
+          WithdrawalData.Executed(txId, amount, recipient, fees, ChecksState.Decided(Map(), Decision.ApprovedBySystem()), externalId),
       )
 
       checkRecovery()
@@ -162,7 +162,7 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
         val recoveredState = eventually {
           runner.run(secondActor.queryState())
         }
-        val _ = assert(recoveredState == originalState)
+        val _              = assert(recoveredState == originalState)
       }
 
       def createActor(): WithdrawalActor = {
@@ -173,11 +173,11 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
         new WithdrawalActor(wf)
       }
 
-      lazy val amount: BigDecimal     = 100
-      lazy val recipient: Iban        = Iban("A")
-      lazy val fees: Fee              = Fee(11)
-      lazy val externalId: String     = "external-id-1"
-      lazy val service: TestWithdrawalService[F] = TestWithdrawalService[F]
+      lazy val amount: BigDecimal                                           = 100
+      lazy val recipient: Iban                                              = Iban("A")
+      lazy val fees: Fee                                                    = Fee(11)
+      lazy val externalId: String                                           = "external-id-1"
+      lazy val service: TestWithdrawalService[F]                            = TestWithdrawalService[F]
       lazy val checksEngine: ChecksEngine[F, testContext.ChecksContext.Ctx] =
         new ChecksEngine[F, testContext.ChecksContext.Ctx](testContext.ChecksContext)
 

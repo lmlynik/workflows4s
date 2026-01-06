@@ -19,7 +19,10 @@ object IOWithdrawalWorkflow {
     override type State = workflows4s.example.withdrawal.checks.ChecksState
   }
 
-  def create(service: WithdrawalService[IO], checksEngine: ChecksEngine[IO, ChecksEngineContext.Ctx]): WithdrawalWorkflow[IO, Context.Ctx, ChecksEngineContext.Ctx] = {
+  def create(
+      service: WithdrawalService[IO],
+      checksEngine: ChecksEngine[IO, ChecksEngineContext.Ctx],
+  ): WithdrawalWorkflow[IO, Context.Ctx, ChecksEngineContext.Ctx] = {
     new WithdrawalWorkflow[IO, Context.Ctx, ChecksEngineContext.Ctx](Context, service, checksEngine)
   }
 

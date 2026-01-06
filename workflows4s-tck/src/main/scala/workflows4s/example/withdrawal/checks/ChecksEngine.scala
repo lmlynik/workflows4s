@@ -7,8 +7,9 @@ import workflows4s.wio.{SignalDef, WorkflowContext}
 import scala.concurrent.duration.DurationInt
 
 class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
-  val ctx: Ctx
-)(using effect: Effect[F]) extends StrictLogging {
+    val ctx: Ctx,
+)(using effect: Effect[F])
+    extends StrictLogging {
 
   import ctx.WIO
 
@@ -53,18 +54,18 @@ class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event
   private def runPendingChecks: WIO[ChecksState.Pending, Nothing, ChecksState.Pending] =
     WIO
       .runIO[ChecksState.Pending](state => {
-        val input = state.input.asInstanceOf[ChecksInput[F]]
+        val input   = state.input.asInstanceOf[ChecksInput[F]]
         val pending = state.pendingChecks
         val checks  = input.checks.view.filterKeys(pending.contains).values.toList
         effect.map(
           effect.traverse(checks)(check =>
             effect.handleErrorWith(
-              effect.map(check.run(input.data))(result => (check.key, result))
+              effect.map(check.run(input.data))(result => (check.key, result)),
             )(_ => {
               logger.error("Error when running a check, falling back to manual review.")
               effect.pure((check.key, CheckResult.RequiresReview()))
-            })
-          )
+            }),
+          ),
         )(results => ChecksEvent.ChecksRun(results.toMap))
       })
       .handleEvent((state, evt) => state.addResults(evt.asInstanceOf[ChecksEvent.ChecksRun].results))

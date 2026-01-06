@@ -45,7 +45,7 @@ trait Check[F[_], -Data] {
 /** Helper for creating static checks that always return the same result, useful for tests.
   */
 case class StaticCheck[F[_]](result: CheckResult)(using F: Effect[F]) extends Check[F, Any] {
-  def key: CheckKey = CheckKey(s"static-${result.toString}")
+  def key: CheckKey                  = CheckKey(s"static-${result.toString}")
   def run(data: Any): F[CheckResult] = F.pure(result)
 }
 
@@ -61,7 +61,7 @@ object ChecksState {
     override def results: Map[CheckKey, CheckResult] = Map()
   }
 
-  case class Pending(input: ChecksInput[?], results: Map[CheckKey, CheckResult])          extends InProgress {
+  case class Pending(input: ChecksInput[?], results: Map[CheckKey, CheckResult])       extends InProgress {
     private def finishedChecks: Map[CheckKey, CheckResult.Finished] = results.collect({ case (key, result: CheckResult.Finished) => key -> result })
     def pendingChecks: Set[CheckKey]                                = input.checks.keySet -- finishedChecks.keySet
 
@@ -91,7 +91,7 @@ object ChecksInput {
 
   def apply[F0[_], D](data0: D, checks0: List[Check[F0, D]]): ChecksInput[F0] = new ChecksInput[F0] {
     type Data = D
-    def data: Data                            = data0
+    def data: Data                             = data0
     def checks: Map[CheckKey, Check[F0, Data]] = checks0.map(x => x.key -> x).toMap
   }
 

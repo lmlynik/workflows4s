@@ -4,19 +4,18 @@ import workflows4s.example.withdrawal.WithdrawalService.{ExecutionResponse, Fee,
 import workflows4s.example.withdrawal.checks.Check
 import workflows4s.runtime.instanceengine.Effect
 
-/** Configurable stub implementation of WithdrawalService for testing. Configure behavior by setting the response fields
-  * before running tests.
+/** Configurable stub implementation of WithdrawalService for testing. Configure behavior by setting the response fields before running tests.
   */
 class TestWithdrawalService[F[_]](using E: Effect[F]) extends WithdrawalService[F] {
 
   // Configurable responses
-  var feeResponse: Fee                                        = Fee(0)
-  var holdResponse: Either[NotEnoughFunds, Unit]              = Right(())
-  var executionResponse: () => ExecutionResponse              = () => ExecutionResponse.Accepted("ext-1")
-  var checks: List[Check[F, WithdrawalData.Validated]]        = List()
+  var feeResponse: Fee                                 = Fee(0)
+  var holdResponse: Either[NotEnoughFunds, Unit]       = Right(())
+  var executionResponse: () => ExecutionResponse       = () => ExecutionResponse.Accepted("ext-1")
+  var checks: List[Check[F, WithdrawalData.Validated]] = List()
 
   // Track invocations
-  var releaseFundsCalled: Boolean  = false
+  var releaseFundsCalled: Boolean    = false
   var cancelFundsLockCalled: Boolean = false
 
   override def calculateFees(amount: BigDecimal): F[Fee] =

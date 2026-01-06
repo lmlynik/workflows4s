@@ -2,11 +2,10 @@ package workflows4s.example.withdrawal.checks
 
 import workflows4s.runtime.instanceengine.Effect
 
-/** A Check implementation that always returns a static result. Useful for testing workflows with predictable check
-  * outcomes.
+/** A Check implementation that always returns a static result. Useful for testing workflows with predictable check outcomes.
   */
 case class StaticCheck[F[_], T <: CheckResult](result: T)(using E: Effect[F]) extends Check[F, Any] {
-  override val key: CheckKey               = CheckKey(s"static-${result.getClass.getSimpleName}")
+  override val key: CheckKey                  = CheckKey(s"static-${result.getClass.getSimpleName}")
   override def run(data: Any): F[CheckResult] = E.pure(result)
 }
 

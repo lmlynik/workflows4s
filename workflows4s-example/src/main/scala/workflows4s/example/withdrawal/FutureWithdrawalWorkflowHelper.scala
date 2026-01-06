@@ -19,7 +19,10 @@ object FutureWithdrawalWorkflowHelper {
     override type State = workflows4s.example.withdrawal.checks.ChecksState
   }
 
-  def create(service: WithdrawalService[Future], checksEngine: ChecksEngine[Future, ChecksEngineContext.Ctx]): WithdrawalWorkflow[Future, Context.Ctx, ChecksEngineContext.Ctx] = {
+  def create(
+      service: WithdrawalService[Future],
+      checksEngine: ChecksEngine[Future, ChecksEngineContext.Ctx],
+  ): WithdrawalWorkflow[Future, Context.Ctx, ChecksEngineContext.Ctx] = {
     given workflows4s.runtime.instanceengine.Effect[Future] = FutureEffect.futureEffect(using Context.executionContext)
     new WithdrawalWorkflow[Future, Context.Ctx, ChecksEngineContext.Ctx](Context, service, checksEngine)
   }

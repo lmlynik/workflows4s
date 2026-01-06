@@ -8,8 +8,8 @@ import workflows4s.testing.{Runner, WorkflowTestAdapter}
 
 import scala.reflect.Selectable.reflectiveSelectable
 
-/** Generic test suite for ChecksEngine that works with any effect type F[_]. Extend this trait and provide the required
-  * abstract members to run the test suite with your effect type.
+/** Generic test suite for ChecksEngine that works with any effect type F[_]. Extend this trait and provide the required abstract members to run the
+  * test suite with your effect type.
   */
 trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
 
@@ -20,13 +20,12 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
   /** The test context providing workflow contexts for the effect type */
   val testContext: ChecksEngineTestContext[F]
 
-  /** Create a Check that tracks how many times it has been run. Returns Pending for the first `pendingCount` runs, then
-    * Approved.
+  /** Create a Check that tracks how many times it has been run. Returns Pending for the first `pendingCount` runs, then Approved.
     */
   def createTrackingCheck(pendingCount: Int): Check[F, Unit] & { def runNum: Int }
 
   def checkEngineTests(
-      testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx]
+      testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx],
   ): Unit = {
 
     "re-run pending checks until complete" in new Fixture(testAdapter) {
@@ -70,7 +69,7 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
         actor.state == ChecksState.Decided(
           Map(check.key -> CheckResult.TimedOut()),
           Decision.ApprovedByOperator(),
-        )
+        ),
       )
     }
 
@@ -78,7 +77,7 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
 
       def createWorkflow(checks: List[Check[F, Unit]]): ChecksActor = {
         val checksEngine = testContext.createEngine()
-        val wf = adapter.runWorkflow(
+        val wf           = adapter.runWorkflow(
           checksEngine.runChecks.provideInput(ChecksInput((), checks)),
           null: ChecksState,
         )
@@ -89,7 +88,7 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
         val originalState  = firstActor.state
         val secondActor    = adapter.recover(firstActor.wf)
         val recoveredState = runner.run(secondActor.queryState())
-        val _ = assert(recoveredState == originalState)
+        val _              = assert(recoveredState == originalState)
       }
 
       class ChecksActor(val wf: adapter.Actor) {

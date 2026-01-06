@@ -27,20 +27,20 @@ class WithdrawalWorkflowTest extends AnyFreeSpec with WithdrawalWorkflowTestSuit
   // IO-specific render tests
   "render model" in {
     val checksEngine = DummyChecksEngine[IO, testContext.ChecksContext.Ctx](testContext.ChecksContext)
-    val wf = testContext.createWorkflow(null, checksEngine)
+    val wf           = testContext.createWorkflow(null, checksEngine)
     TestUtils.renderModelToFile(wf.workflowDeclarative, "withdrawal-example-declarative-model.json")
   }
 
   "render bpmn model" in {
     val checksEngine = DummyChecksEngine[IO, testContext.ChecksContext.Ctx](testContext.ChecksContext)
-    val wf = testContext.createWorkflow(null, checksEngine)
+    val wf           = testContext.createWorkflow(null, checksEngine)
     TestUtils.renderBpmnToFile(wf.workflow, "withdrawal-example-bpmn.bpmn")
     TestUtils.renderBpmnToFile(wf.workflowDeclarative, "withdrawal-example-bpmn-declarative.bpmn")
   }
 
   "render mermaid model" in {
     val checksEngine = DummyChecksEngine[IO, testContext.ChecksContext.Ctx](testContext.ChecksContext)
-    val wf = testContext.createWorkflow(null, checksEngine)
+    val wf           = testContext.createWorkflow(null, checksEngine)
     TestUtils.renderMermaidToFile(wf.workflow.toProgress, "withdrawal-example.mermaid")
     TestUtils.renderMermaidToFile(wf.workflowDeclarative.toProgress, "withdrawal-example-declarative.mermaid")
   }

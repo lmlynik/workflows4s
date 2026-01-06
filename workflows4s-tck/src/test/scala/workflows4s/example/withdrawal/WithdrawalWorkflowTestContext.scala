@@ -4,22 +4,21 @@ import workflows4s.example.withdrawal.checks.{ChecksEvent, ChecksState}
 import workflows4s.runtime.instanceengine.Effect
 import workflows4s.wio.WorkflowContext
 
-/** Generic workflow context helper for effect-polymorphic tests. Provides context definitions that work with any effect
-  * type F[_].
+/** Generic workflow context helper for effect-polymorphic tests. Provides context definitions that work with any effect type F[_].
   */
 class WithdrawalWorkflowTestContext[F[_]](using E: Effect[F]) {
 
   object Context extends WorkflowContext {
-    override type Event   = WithdrawalEvent
-    override type State   = WithdrawalData
-    override type Eff[A]  = F[A]
+    override type Event  = WithdrawalEvent
+    override type State  = WithdrawalData
+    override type Eff[A] = F[A]
     override given effect: Effect[Eff] = E
   }
 
   object ChecksContext extends WorkflowContext {
-    override type Event   = ChecksEvent
-    override type State   = ChecksState
-    override type Eff[A]  = F[A]
+    override type Event  = ChecksEvent
+    override type State  = ChecksState
+    override type Eff[A] = F[A]
     override given effect: Effect[Eff] = E
   }
 

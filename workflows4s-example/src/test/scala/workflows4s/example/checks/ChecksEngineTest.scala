@@ -30,7 +30,7 @@ class ChecksEngineTest extends AnyFreeSpec with ChecksEngineTestSuite[IO] {
           IO {
             runNum += 1
           }.as(CheckResult.Pending())
-        case _ => IO(CheckResult.Approved())
+        case _                     => IO(CheckResult.Approved())
       }
     }
 
@@ -41,7 +41,7 @@ class ChecksEngineTest extends AnyFreeSpec with ChecksEngineTestSuite[IO] {
 
   "render models" in {
     val checksEngine = testContext.createEngine()
-    val wf = checksEngine.runChecks
+    val wf           = checksEngine.runChecks
     TestUtils.renderBpmnToFile(wf, "checks-engine.bpmn")
     TestUtils.renderMermaidToFile(wf.toProgress, "checks-engine.mermaid")
   }

@@ -12,13 +12,13 @@ import workflows4s.wio.{SignalDef, WorkflowContext}
 import java.time.Duration
 
 class WithdrawalWorkflow[
-  F[_],
-  Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
-  ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }
+    F[_],
+    Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
+    ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState },
 ](
-  val ctx: Ctx,
-  service: WithdrawalService[F],
-  checksEngine: ChecksEngine[F, ChecksCtx]
+    val ctx: Ctx,
+    service: WithdrawalService[F],
+    checksEngine: ChecksEngine[F, ChecksCtx],
 )(using effect: Effect[F]) {
 
   import ctx.WIO
@@ -85,7 +85,7 @@ class WithdrawalWorkflow[
       .autoNamed()
 
   private def runChecks: WIO[WithdrawalData.Validated, WithdrawalRejection.RejectedInChecks, WithdrawalData.Checked] = {
-    val embedding = WithdrawalWorkflow.checksEmbedding[F, ChecksCtx, Ctx]
+    val embedding                                                                   = WithdrawalWorkflow.checksEmbedding[F, ChecksCtx, Ctx]
     val doRunChecks: WIO[WithdrawalData.Validated, Nothing, WithdrawalData.Checked] = {
       val innerWIO = checksEngine.runChecks
         .transformInput((x: WithdrawalData.Validated) => ChecksInput(x, service.getChecks()))
@@ -111,9 +111,7 @@ class WithdrawalWorkflow[
   // This could use retries once we have them
   private def initiateExecution: WIO[WithdrawalData.Checked, WithdrawalRejection.RejectedByExecutionEngine, WithdrawalData.Executed] =
     WIO
-      .runIO[WithdrawalData.Checked](s =>
-        effect.map(service.initiateExecution(s.netAmount, s.recipient))(WithdrawalEvent.ExecutionInitiated.apply),
-      )
+      .runIO[WithdrawalData.Checked](s => effect.map(service.initiateExecution(s.netAmount, s.recipient))(WithdrawalEvent.ExecutionInitiated.apply))
       .handleEventWithError((s, event) =>
         event.response match {
           case ExecutionResponse.Accepted(externalId) => Right(s.executed(externalId))
@@ -151,7 +149,8 @@ class WithdrawalWorkflow[
           case WithdrawalRejection.NotEnoughFunds()                 => effect.pure(WithdrawalEvent.RejectionHandled("Not enough funds on the user's account"))
           case WithdrawalRejection.RejectedInChecks()               =>
             effect.map(service.cancelFundsLock())(_ => WithdrawalEvent.RejectionHandled("Transaction rejected in checks"))
-          case WithdrawalRejection.RejectedByExecutionEngine(error) => effect.map(service.cancelFundsLock())(_ => WithdrawalEvent.RejectionHandled(error))
+          case WithdrawalRejection.RejectedByExecutionEngine(error) =>
+            effect.map(service.cancelFundsLock())(_ => WithdrawalEvent.RejectionHandled(error))
           case WithdrawalRejection.Cancelled(operatorId, comment)   =>
             effect.map(service.cancelFundsLock())(_ => WithdrawalEvent.RejectionHandled(s"Cancelled by ${operatorId}. Comment: ${comment}"))
         }
@@ -202,9 +201,9 @@ object WithdrawalWorkflow {
   val cancelSignal             = Signals.cancel
 
   def checksEmbedding[
-    F[_],
-    ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState },
-    WithdrawalCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData }
+      F[_],
+      ChecksCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState },
+      WithdrawalCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
   ]: WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] =
     new WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] {
       override def convertEvent(e: WorkflowContext.Event[ChecksCtx]): WorkflowContext.Event[WithdrawalCtx] =
@@ -225,12 +224,13 @@ object WithdrawalWorkflow {
         case x: ChecksState.Decided    => input.checked(x)
       }).asInstanceOf[OutputState[T]]
 
-      override def unconvertState(outerState: WorkflowContext.State[WithdrawalCtx]): Option[WorkflowContext.State[ChecksCtx]] = outerState.asInstanceOf[WithdrawalData] match {
-        case _: WithdrawalData.Validated => Some(ChecksState.Empty.asInstanceOf[WorkflowContext.State[ChecksCtx]])
-        case x: WithdrawalData.Checking  => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
-        case x: WithdrawalData.Checked   => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
-        case _                           => None
-      }
+      override def unconvertState(outerState: WorkflowContext.State[WithdrawalCtx]): Option[WorkflowContext.State[ChecksCtx]] =
+        outerState.asInstanceOf[WithdrawalData] match {
+          case _: WithdrawalData.Validated => Some(ChecksState.Empty.asInstanceOf[WorkflowContext.State[ChecksCtx]])
+          case x: WithdrawalData.Checking  => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
+          case x: WithdrawalData.Checked   => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
+          case _                           => None
+        }
     }
 
 }

@@ -32,7 +32,7 @@ class PostgresChecksEngineTest extends AnyFreeSpec with PostgresSuite with Check
           IO {
             runNum += 1
           }.as(CheckResult.Pending())
-        case _ => IO(CheckResult.Approved())
+        case _                     => IO(CheckResult.Approved())
       }
     }
 

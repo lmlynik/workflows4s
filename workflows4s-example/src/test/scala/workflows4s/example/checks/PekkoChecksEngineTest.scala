@@ -12,10 +12,7 @@ import workflows4s.testing.{Runner, WorkflowTestAdapter}
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class PekkoChecksEngineTest
-    extends ScalaTestWithActorTestKit(ActorTestKit("MyCluster"))
-    with AnyFreeSpecLike
-    with ChecksEngineTestSuite[Future] {
+class PekkoChecksEngineTest extends ScalaTestWithActorTestKit(ActorTestKit("MyCluster")) with AnyFreeSpecLike with ChecksEngineTestSuite[Future] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()

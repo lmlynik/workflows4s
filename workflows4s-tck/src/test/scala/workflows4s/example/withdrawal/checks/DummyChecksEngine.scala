@@ -6,7 +6,7 @@ import workflows4s.wio.WorkflowContext
 /** A dummy ChecksEngine implementation for testing that immediately approves without running any checks.
   */
 class DummyChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
-    ctx: Ctx
+    ctx: Ctx,
 )(using Effect[F])
     extends ChecksEngine[F, Ctx](ctx) {
 
@@ -17,7 +17,7 @@ class DummyChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type 
 object DummyChecksEngine {
 
   def apply[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event = ChecksEvent; type State = ChecksState }](
-      ctx: Ctx
+      ctx: Ctx,
   )(using Effect[F]): DummyChecksEngine[F, Ctx] =
     new DummyChecksEngine[F, Ctx](ctx)
 }
