@@ -1,44 +1,32 @@
 # workflows4s-tck
 
-Technology Compatibility Kit (TCK) module for workflows4s.
+Technology Compatibility Kit (TCK) for testing workflows4s runtime implementations.
 
 ## Purpose
 
-This module provides **effect-polymorphic workflow definitions** and **reusable test suites** that can be instantiated with any effect type `F[_]` (IO, Future, Id, etc.). It eliminates duplication between different runtime implementations by extracting generic workflow logic.
+This module provides the **"golden sample" workflow** and **reusable test suites** to verify that runtime implementations (Pekko, Postgres, SQLite, in-memory) behave correctly. All runtimes are tested against the same workflow definitions to ensure consistency.
 
 ## Contents
 
 ### Main Sources (`src/main/scala`)
 
-Generic workflow definitions that work with any effect type:
-
-- **WithdrawalWorkflow** - A complete withdrawal workflow demonstrating signals, timers, error handling, and embedded workflows
-- **ChecksEngine** - An embedded workflow for running compliance checks with retry logic and timeouts
+- **WithdrawalWorkflow** - The golden sample workflow that all runtimes are tested against. Demonstrates signals, timers, error handling, retries, and embedded workflows.
+- **ChecksEngine** - A generic embedded workflow used to test the WIO embedding feature. Demonstrates retry logic, timeouts, and operator review flows.
 - **Domain models** - WithdrawalData, WithdrawalEvent, WithdrawalSignal, ChecksState, etc.
 
 ### Test Sources (`src/test/scala`)
 
-Reusable test suites and utilities:
-
-- **WithdrawalWorkflowTestSuite[F]** - Generic test suite for withdrawal workflow that can be mixed into concrete test classes
-- **ChecksEngineTestSuite[F]** - Generic test suite for the checks engine
-- **TestWithdrawalService[F]** - Mock service for testing
-- **Test contexts** - WithdrawalWorkflowTestContext, ChecksEngineTestContext
+- **WithdrawalWorkflowTestSuite[F]** - Reusable test suite that verifies workflow behavior across runtimes
+- **ChecksEngineTestSuite[F]** - Reusable test suite for the embedded checks workflow
+- **Test utilities** - TestWithdrawalService, StaticCheck, test contexts
 
 ## Usage
 
 To test a new runtime implementation:
 
-1. Create a test class that extends `WithdrawalWorkflowTestSuite[F]` for your effect type
-2. Provide the required `Effect[F]` instance
-3. Create a `WorkflowTestAdapter` for your runtime
-4. Call `withdrawalTests(adapter)` to run the full test suite
-
-Example:
 ```scala
 class MyRuntimeWithdrawalTest extends AnyFreeSpec with WithdrawalWorkflowTestSuite[IO] {
   override given effect: Effect[IO] = CatsEffect.ioEffect
-  override val testContext = new WithdrawalWorkflowTestContext[IO]
 
   "my-runtime" - {
     val adapter = new MyRuntimeAdapter[testContext.Context.Ctx](...)
@@ -49,6 +37,6 @@ class MyRuntimeWithdrawalTest extends AnyFreeSpec with WithdrawalWorkflowTestSui
 
 ## Design Principles
 
-1. **Effect polymorphism** - All workflow definitions use `F[_]` type parameter, allowing the same workflow to run with different effect systems
-2. **No runtime-specific dependencies** - TCK module only depends on `workflows4s-core`, not on Pekko, Doobie, or cats-effect
-3. **Reusable test logic** - Test suites validate behavior consistently across all runtime implementations
+1. **Golden sample testing** - All runtimes tested against the same WithdrawalWorkflow
+2. **Effect polymorphism** - Works with IO, Future, or any effect type via `F[_]`
+3. **No runtime dependencies** - TCK only depends on `workflows4s-core`

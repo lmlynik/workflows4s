@@ -175,11 +175,11 @@ All state changes are events. State is reconstructed by replaying events through
 **workflows4s-web-ui** - ScalaJS frontend
 - Tyrian (Elm-like) web UI for workflow visualization
 
-**workflows4s-tck** - Technology Compatibility Kit
-- Effect-polymorphic workflow definitions (WithdrawalWorkflow, ChecksEngine)
-- Reusable test suites (WithdrawalWorkflowTestSuite, ChecksEngineTestSuite)
-- Eliminates duplication between runtime implementations
-- See `workflows4s-tck/README.md` for details
+**workflows4s-tck** - Technology Compatibility Kit (for testing)
+- **WithdrawalWorkflow**: The "golden sample" workflow that all runtime implementations are tested against
+- **ChecksEngine**: Generic embedded workflow used to test the WIO embedding feature within WithdrawalWorkflow
+- Reusable test suites (WithdrawalWorkflowTestSuite, ChecksEngineTestSuite) that verify runtime correctness
+- Effect-polymorphic: works with IO, Future, or any effect type
 - **Location**: `workflows4s-tck/src/main/scala/workflows4s/example/`
 
 **workflows4s-example** - Example workflows
