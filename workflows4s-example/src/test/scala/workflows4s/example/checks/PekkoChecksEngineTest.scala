@@ -4,19 +4,18 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWit
 import org.apache.pekko.persistence.jdbc.testkit.scaladsl.SchemaUtils
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
-import workflows4s.example.withdrawal.checks.FutureChecksEngineHelper
+import workflows4s.example.withdrawal.checks.*
+import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
 import workflows4s.runtime.pekko.PekkoRuntimeAdapter
+import workflows4s.testing.{Runner, WorkflowTestAdapter}
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
-/** Pekko-based checks engine tests.
-  *
-  * Note: The Pekko runtime now uses Future instead of IO. The existing ChecksEngineTest.Suite is designed for IO-based workflows and
-  * TestRuntimeAdapter. A Future-based test suite would need to be created to fully test the Pekko runtime with the FutureChecksEngineHelper.
-  *
-  * For now, we verify basic Pekko runtime functionality with Future-based workflows.
-  */
-class PekkoChecksEngineTest extends ScalaTestWithActorTestKit(ActorTestKit("MyCluster")) with AnyFreeSpecLike {
+class PekkoChecksEngineTest
+    extends ScalaTestWithActorTestKit(ActorTestKit("MyCluster"))
+    with AnyFreeSpecLike
+    with ChecksEngineTestSuite[Future] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -24,12 +23,39 @@ class PekkoChecksEngineTest extends ScalaTestWithActorTestKit(ActorTestKit("MyCl
     ()
   }
 
+  override given effect: Effect[Future] = FutureEffect.futureEffect
+
+  override given runner: Runner[Future] = new Runner[Future] {
+    def run[A](fa: Future[A]): A = Await.result(fa, 10.seconds)
+  }
+
+  override val testContext: ChecksEngineTestContext[Future] = new ChecksEngineTestContext[Future]
+
+  override def createTrackingCheck(pendingCount: Int): Check[Future, Unit] & { def runNum: Int } =
+    new Check[Future, Unit] {
+      var runNum = 0
+
+      override def key: CheckKey = CheckKey("foo")
+
+      override def run(data: Unit): Future[CheckResult] = {
+        if runNum < pendingCount then {
+          runNum += 1
+          Future.successful(CheckResult.Pending())
+        } else {
+          Future.successful(CheckResult.Approved())
+        }
+      }
+    }
+
   "pekko with Future" - {
-    "should create a PekkoRuntimeAdapter for FutureChecksEngineHelper context" in {
-      // Verify that the adapter can be created with the Future-based checks engine context
-      val adapter = new PekkoRuntimeAdapter[FutureChecksEngineHelper.Context.Ctx]("pekko-checks-future")(using testKit.system)
+    "should create a PekkoRuntimeAdapter for Future checks engine context" in {
+      val adapter = new PekkoRuntimeAdapter[testContext.Context.Ctx]("pekko-checks-future")(using testKit.system)
       assert(adapter != null)
     }
   }
 
+  "in-memory with Future" - {
+    val adapter = new WorkflowTestAdapter.InMemory[Future, testContext.Context.Ctx]()
+    checkEngineTests(adapter)
+  }
 }

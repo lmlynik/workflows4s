@@ -38,8 +38,11 @@ lazy val `workflows4s-tck` = (project in file("workflows4s-tck"))
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "io.circe"        %% "circe-core"    % circeVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion,
+      "io.circe"                   %% "circe-core"      % circeVersion,
+      "com.softwaremill.sttp.tapir" %% "tapir-core"     % tapirVersion,
+      "org.scalatest"              %% "scalatest"       % "3.2.19"         % Test,
+      "com.typesafe.scala-logging" %% "scala-logging"   % "3.9.6"          % Test,
+      "ch.qos.logback"              % "logback-classic" % "1.5.18"         % Test,
     ),
     publish / skip := true,
   )
@@ -212,7 +215,7 @@ lazy val `workflows4s-example` = (project in file("workflows4s-example"))
     publish / skip           := true,
   )
   .dependsOn(
-    `workflows4s-tck`,
+    `workflows4s-tck`    % "compile->compile;test->test",
     `workflows4s-cats`   % "compile->compile;test->test",
     `workflows4s-bpmn`,
     `workflows4s-pekko`  % "compile->compile;test->test",

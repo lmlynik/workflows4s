@@ -1,24 +1,29 @@
 package workflows4s.example
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
-import org.scalamock.scalatest.MockFactory
+import workflows4s.cats.CatsEffect
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.sqlite.testing.{SqliteRuntimeAdapter, SqliteWorkdirSuite}
 import workflows4s.example.testuitls.CirceEventCodec
 import workflows4s.example.withdrawal.*
+import workflows4s.runtime.instanceengine.Effect
 import workflows4s.testing.Runner
-import cats.effect.unsafe.implicits.global
 
-class SqliteWithdrawalWorkflowTest extends AnyFreeSpec with SqliteWorkdirSuite with MockFactory with WithdrawalWorkflowTest.Suite {
+class SqliteWithdrawalWorkflowTest extends AnyFreeSpec with SqliteWorkdirSuite with WithdrawalWorkflowTestSuite[IO] {
 
-  given Runner[IO] = new Runner[IO] {
+  override given effect: Effect[IO] = CatsEffect.ioEffect
+
+  override given runner: Runner[IO] = new Runner[IO] {
     def run[A](fa: IO[A]): A = fa.unsafeRunSync()
   }
+
+  override val testContext: WithdrawalWorkflowTestContext[IO] = new WithdrawalWorkflowTestContext[IO]
 
   "sqlite" - {
     withdrawalTests(new SqliteRuntimeAdapter(workdir, eventCodec))
   }
 
-  lazy val eventCodec: ByteCodec[IOWithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
+  lazy val eventCodec: ByteCodec[testContext.Context.Event] = CirceEventCodec.get()
 }

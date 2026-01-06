@@ -1,25 +1,29 @@
 package workflows4s.example
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
-import org.scalamock.scalatest.MockFactory
+import workflows4s.cats.CatsEffect
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.postgres.testing.PostgresRuntimeAdapter
 import workflows4s.example.testuitls.{CirceEventCodec, PostgresSuite}
 import workflows4s.example.withdrawal.*
+import workflows4s.runtime.instanceengine.Effect
 import workflows4s.testing.Runner
 
-class PostgresWithdrawalWorkflowTest extends AnyFreeSpec with PostgresSuite with MockFactory with WithdrawalWorkflowTest.Suite {
+class PostgresWithdrawalWorkflowTest extends AnyFreeSpec with PostgresSuite with WithdrawalWorkflowTestSuite[IO] {
 
-  // Define how to run IOs in this test
-  implicit val runner: Runner[IO] = new Runner[IO] {
-    import cats.effect.unsafe.implicits.global
+  override given effect: Effect[IO] = CatsEffect.ioEffect
+
+  override given runner: Runner[IO] = new Runner[IO] {
     def run[A](fa: IO[A]): A = fa.unsafeRunSync()
   }
 
+  override val testContext: WithdrawalWorkflowTestContext[IO] = new WithdrawalWorkflowTestContext[IO]
+
   "postgres" - {
-    withdrawalTests(new PostgresRuntimeAdapter[IOWithdrawalWorkflow.Context.Ctx](xa, eventCodec))
+    withdrawalTests(new PostgresRuntimeAdapter[testContext.Context.Ctx](xa, eventCodec))
   }
 
-  lazy val eventCodec: ByteCodec[IOWithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
+  lazy val eventCodec: ByteCodec[testContext.Context.Event] = CirceEventCodec.get()
 }
