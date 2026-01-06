@@ -2,6 +2,7 @@ package workflows4s.runtime
 
 import com.typesafe.scalalogging.StrictLogging
 import workflows4s.runtime.instanceengine.{Effect, WorkflowInstanceEngine}
+import workflows4s.runtime.instanceengine.Effect.*
 import workflows4s.wio.*
 
 import scala.collection.mutable
@@ -20,6 +21,8 @@ class InMemoryWorkflowInstance[F[_], Ctx <: WorkflowContext] private (
 ) extends WorkflowInstanceBase[F, Ctx](using E)
     with StrictLogging {
 
+  private given Effect[F] = E
+
   private var wf: ActiveWorkflow[F, Ctx]           = initialState
   private val events: mutable.Buffer[WCEvent[Ctx]] = ListBuffer[WCEvent[Ctx]]()
 
@@ -27,7 +30,7 @@ class InMemoryWorkflowInstance[F[_], Ctx <: WorkflowContext] private (
 
   def recover(events: Seq[WCEvent[Ctx]]): F[Unit] = {
     E.withLock(mutex) {
-      E.map(super.recover(wf, events)) { newState =>
+      super.recover(wf, events).map { newState =>
         this.events ++= events
         wf = newState
       }
@@ -47,7 +50,7 @@ class InMemoryWorkflowInstance[F[_], Ctx <: WorkflowContext] private (
 
   override protected def lockState[T](update: ActiveWorkflow[F, Ctx] => F[T]): F[T] = {
     E.withLock(mutex) {
-      E.flatMap(E.delay(wf))(update)
+      E.delay(wf).flatMap(update)
     }
   }
 }
@@ -61,7 +64,7 @@ object InMemoryWorkflowInstance {
       initialState: ActiveWorkflow[F, Ctx],
       engine: WorkflowInstanceEngine[F],
   )(using E: Effect[F]): F[InMemoryWorkflowInstance[F, Ctx]] = {
-    E.map(E.createMutex) { mutex =>
+    E.createMutex.map { mutex =>
       new InMemoryWorkflowInstance[F, Ctx](id, initialState, engine, E, mutex)
     }
   }
