@@ -28,22 +28,22 @@ class WithdrawalWorkflowTest extends AnyFreeSpec with MockFactory with Withdrawa
   }
 
   "in-memory" - {
-    val adapter = new WorkflowTestAdapter.InMemory[IO, WithdrawalWorkflow.Context.Ctx]()
+    val adapter = new WorkflowTestAdapter.InMemory[IO, IOWithdrawalWorkflow.Context.Ctx]()
     withdrawalTests(adapter)
   }
 
   "render model" in {
-    val wf = new WithdrawalWorkflow(null, DummyChecksEngine)
+    val wf = IOWithdrawalWorkflow.create(null, DummyChecksEngine)
     TestUtils.renderModelToFile(wf.workflowDeclarative, "withdrawal-example-declarative-model.json")
   }
 
   "render bpmn model" in {
-    val wf = new WithdrawalWorkflow(null, DummyChecksEngine)
+    val wf = IOWithdrawalWorkflow.create(null, DummyChecksEngine)
     TestUtils.renderBpmnToFile(wf.workflow, "withdrawal-example-bpmn.bpmn")
     TestUtils.renderBpmnToFile(wf.workflowDeclarative, "withdrawal-example-bpmn-declarative.bpmn")
   }
   "render mermaid model" in {
-    val wf = new WithdrawalWorkflow(null, DummyChecksEngine)
+    val wf = IOWithdrawalWorkflow.create(null, DummyChecksEngine)
     TestUtils.renderMermaidToFile(wf.workflow.toProgress, "withdrawal-example.mermaid")
     TestUtils.renderMermaidToFile(wf.workflowDeclarative.toProgress, "withdrawal-example-declarative.mermaid")
   }
@@ -53,7 +53,7 @@ object WithdrawalWorkflowTest {
   trait Suite extends AnyFreeSpecLike with MockFactory {
 
     def withdrawalTests(
-        testAdapter: => WorkflowTestAdapter[IO, WithdrawalWorkflow.Context.Ctx],
+        testAdapter: => WorkflowTestAdapter[IO, IOWithdrawalWorkflow.Context.Ctx],
     )(using runner: Runner[IO]): Unit = {
 
       "happy path" in new Fixture(testAdapter) {
@@ -214,7 +214,7 @@ object WithdrawalWorkflowTest {
         checkRecovery()
       }
 
-      class Fixture(val adapter: WorkflowTestAdapter[IO, WithdrawalWorkflow.Context.Ctx]) extends StrictLogging {
+      class Fixture(val adapter: WorkflowTestAdapter[IO, IOWithdrawalWorkflow.Context.Ctx]) extends StrictLogging {
         val txId  = "abc"
         val actor = createActor()
 
@@ -243,12 +243,12 @@ object WithdrawalWorkflowTest {
         lazy val recipient                  = Iban("A")
         lazy val fees                       = Fee(11)
         lazy val externalId                 = "external-id-1"
-        lazy val service: WithdrawalService = mock[WithdrawalService]
+        lazy val service: WithdrawalService[IO] = mock[WithdrawalService[IO]]
 
-        def checksEngine: ChecksEngine = ChecksEngine
+        def checksEngine: ChecksEngine[IO, IOChecksEngine.Context.Ctx] = DummyChecksEngine
 
-        def workflow: WithdrawalWorkflow.Context.WIO.Initial =
-          new WithdrawalWorkflow(service, checksEngine).workflowDeclarative
+        def workflow: IOWithdrawalWorkflow.Context.WIO.Initial =
+          IOWithdrawalWorkflow.create(service, checksEngine).workflowDeclarative
 
         def withFeeCalculation(fee: Fee) =
           (service.calculateFees).expects(*).returning(IO(fee))
@@ -279,7 +279,7 @@ object WithdrawalWorkflowTest {
             .expects()
             .returning(IO.unit)
 
-        def withChecks(list: List[Check[WithdrawalData.Validated]]) =
+        def withChecks(list: List[Check[IO, WithdrawalData.Validated]]) =
           ((() => service.getChecks()))
             .expects()
             .returning(list)
@@ -312,9 +312,9 @@ object WithdrawalWorkflowTest {
     }
   }
 
-  object DummyChecksEngine extends ChecksEngine {
-    override def runChecks: ChecksEngine.Context.WIO[ChecksInput, Nothing, ChecksState.Decided] =
-      ChecksEngine.Context.WIO.pure(ChecksState.Decided(Map(), Decision.ApprovedBySystem())).autoNamed
+  object DummyChecksEngine extends ChecksEngine[IO, IOChecksEngine.Context.Ctx](IOChecksEngine.Context) {
+    override def runChecks: IOChecksEngine.Context.WIO[ChecksInput[IO], Nothing, ChecksState.Decided] =
+      IOChecksEngine.Context.WIO.pure(ChecksState.Decided(Map(), Decision.ApprovedBySystem())).autoNamed
   }
 
 }

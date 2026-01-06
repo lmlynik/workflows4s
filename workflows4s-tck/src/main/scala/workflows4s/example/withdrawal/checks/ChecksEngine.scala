@@ -122,5 +122,9 @@ object ChecksEngine {
   val retryBackoff     = 20.seconds
   val timeoutThreshold = 2.minutes
 
-  val signals: SignalDef[ReviewDecision, Unit] = SignalDef()
+  object Signals {
+    val review: SignalDef[ReviewDecision, Unit] = SignalDef()
+  }
+
+  val signals: SignalDef[ReviewDecision, Unit] = Signals.review
 }

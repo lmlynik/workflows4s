@@ -3,7 +3,7 @@ package workflows4s.example.pekko
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import org.apache.pekko.stream.scaladsl.Sink
-import workflows4s.example.withdrawal.{FutureWithdrawalWorkflow, WithdrawalData, WithdrawalSignal}
+import workflows4s.example.withdrawal.{FutureWithdrawalWorkflowHelper, WithdrawalData, WithdrawalSignal, WithdrawalWorkflow}
 import workflows4s.example.withdrawal.WithdrawalSignal.CreateWithdrawal
 import workflows4s.runtime.WorkflowInstance.UnexpectedSignal
 import workflows4s.runtime.pekko.PekkoRuntime
@@ -29,7 +29,7 @@ trait FutureWithdrawalWorkflowService {
 object FutureWithdrawalWorkflowService {
   type Journal = ReadJournal & CurrentPersistenceIdsQuery
 
-  class Impl(journal: Journal, wdRuntime: PekkoRuntime[FutureWithdrawalWorkflow.Context.Ctx])(using
+  class Impl(journal: Journal, wdRuntime: PekkoRuntime[FutureWithdrawalWorkflowHelper.Context.Ctx])(using
       val actorSystem: ActorSystem[Any],
       ec: ExecutionContext,
   ) extends FutureWithdrawalWorkflowService {
@@ -37,7 +37,7 @@ object FutureWithdrawalWorkflowService {
     override def startWorkflow(id: String, input: CreateWithdrawal): Future[Unit] = {
       val workflow = wdRuntime.createInstance_(id)
       workflow
-        .deliverSignal(FutureWithdrawalWorkflow.Signals.createWithdrawal, input)
+        .deliverSignal(WithdrawalWorkflow.createWithdrawalSignal, input)
         .map({
           case Right(response)             => response
           case Left(UnexpectedSignal(sig)) => throw new Exception(s"Unexpected creation signal $sig for instance ${id}")

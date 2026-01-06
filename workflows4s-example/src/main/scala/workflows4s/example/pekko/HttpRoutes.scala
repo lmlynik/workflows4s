@@ -12,7 +12,7 @@ import workflows4s.example.withdrawal.checks.{CheckResult, ChecksInput, ChecksSt
 import io.circe.generic.auto.*
 
 class HttpRoutes(service: FutureWithdrawalWorkflowService) extends FailFastCirceSupport {
-  given checksInput: Encoder[ChecksInput]                   = Encoder.instance(_.checks.keys.map(_.value).asJson)
+  given checksInput[F[_]]: Encoder[ChecksInput[F]]         = Encoder.instance(_.checks.keys.map(_.value).asJson)
   given checksResult: Encoder[CheckResult]                  = Encoder.instance(_ => Json.Null)
   given checksResultFinished: Encoder[CheckResult.Finished] = Encoder.instance(_ => Json.Null)
   given Encoder[ChecksState]                                = Encoder.instance {

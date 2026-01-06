@@ -3,8 +3,6 @@ package workflows4s.example.withdrawal
 import cats.effect.IO
 import workflows4s.cats.IOWorkflowContext
 import workflows4s.example.withdrawal.checks.ChecksEngine
-import workflows4s.wio.SignalDef
-import workflows4s.wio.internal.WorkflowEmbedding
 import workflows4s.cats.CatsEffect.given
 
 /** IO-specific WithdrawalWorkflow helper for use in the example application.

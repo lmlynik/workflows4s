@@ -191,9 +191,15 @@ object WithdrawalWorkflow {
 
   val executionRetryDelay = Duration.ofMinutes(2)
 
-  val createWithdrawalSignal   = SignalDef[CreateWithdrawal, Unit]()
-  val executionCompletedSignal = SignalDef[ExecutionCompleted, Unit]()
-  val cancelSignal             = SignalDef[CancelWithdrawal, Unit]()
+  object Signals {
+    val createWithdrawal   = SignalDef[CreateWithdrawal, Unit]()
+    val executionCompleted = SignalDef[ExecutionCompleted, Unit]()
+    val cancel             = SignalDef[CancelWithdrawal, Unit]()
+  }
+
+  val createWithdrawalSignal   = Signals.createWithdrawal
+  val executionCompletedSignal = Signals.executionCompleted
+  val cancelSignal             = Signals.cancel
 
   def checksEmbedding[
     F[_],

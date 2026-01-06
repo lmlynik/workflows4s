@@ -20,12 +20,13 @@ class ChecksEngineTest extends AnyFreeSpec with ChecksEngineTest.Suite {
   }
 
   "in-memory" - {
-    val adapter = new WorkflowTestAdapter.InMemory[IO, ChecksEngine.Context]()
+    val adapter = new WorkflowTestAdapter.InMemory[IO, IOChecksEngine.Context.Ctx]()
     checkEngineTests(adapter)
   }
 
   "render models" in {
-    val wf = ChecksEngine.runChecks
+    val checksEngine = IOChecksEngine.create()
+    val wf = checksEngine.runChecks
     TestUtils.renderBpmnToFile(wf, "checks-engine.bpmn")
     TestUtils.renderMermaidToFile(wf.toProgress, "checks-engine.mermaid")
   }
@@ -36,11 +37,11 @@ object ChecksEngineTest {
   trait Suite extends AnyFreeSpecLike {
 
     def checkEngineTests(
-        testAdapter: WorkflowTestAdapter[IO, ChecksEngine.Context],
+        testAdapter: WorkflowTestAdapter[IO, IOChecksEngine.Context.Ctx],
     )(using runner: Runner[IO]): Unit = {
 
       "re-run pending checks until complete" in new Fixture(testAdapter) {
-        val check: Check[Unit] { def runNum: Int } = new Check[Unit] {
+        val check: Check[IO, Unit] { def runNum: Int } = new Check[IO, Unit] {
           @nowarn("msg=unused private member") // compiler went nuts
           var runNum = 0
 
@@ -97,12 +98,13 @@ object ChecksEngineTest {
         )
       }
 
-      class Fixture(val adapter: WorkflowTestAdapter[IO, ChecksEngine.Context]) extends StrictLogging {
+      class Fixture(val adapter: WorkflowTestAdapter[IO, IOChecksEngine.Context.Ctx]) extends StrictLogging {
 
-        def createWorkflow(checks: List[Check[Unit]]): ChecksActor = {
+        def createWorkflow(checks: List[Check[IO, Unit]]): ChecksActor = {
           // The result of runWorkflow is of type adapter.Actor
+          val checksEngine = IOChecksEngine.create()
           val wf = adapter.runWorkflow(
-            ChecksEngine.runChecks.provideInput(ChecksInput((), checks)),
+            checksEngine.runChecks.provideInput(ChecksInput((), checks)),
             null: ChecksState,
           )
           new ChecksActor(wf)
@@ -123,7 +125,7 @@ object ChecksEngineTest {
           def state: ChecksState = runner.run(wf.queryState())
 
           def review(decision: ReviewDecision): Unit = {
-            val _ = runner.run(wf.deliverSignal(ChecksEngine.Signals.review, decision))
+            val _ = runner.run(wf.deliverSignal(ChecksEngine.signals, decision))
           }
         }
       }

@@ -1,9 +1,10 @@
 package workflows4s.example.withdrawal.checks
 
 import io.circe.{Codec, Encoder, KeyDecoder, KeyEncoder}
+import sttp.tapir.Schema
 import workflows4s.runtime.instanceengine.Effect
 
-sealed trait ReviewDecision derives Codec.AsObject
+sealed trait ReviewDecision derives Codec.AsObject, Schema
 object ReviewDecision {
   case object Approve extends ReviewDecision
   case object Reject  extends ReviewDecision

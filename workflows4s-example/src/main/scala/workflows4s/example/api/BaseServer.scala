@@ -82,10 +82,10 @@ trait BaseServer {
                                runtime = withdrawalRuntime,
                                stateEncoder = summon[Encoder[WithdrawalData]],
                                signalSupport = SignalSupport.builder
-                                 .add(WithdrawalWorkflow.createWithdrawalSignal)
-                                 .add(WithdrawalWorkflow.executionCompletedSignal)
-                                 .add(WithdrawalWorkflow.cancelSignal)
-                                 .add(ChecksEngine.signals)
+                                 .add(WithdrawalWorkflow.Signals.createWithdrawal)
+                                 .add(WithdrawalWorkflow.Signals.executionCompleted)
+                                 .add(WithdrawalWorkflow.Signals.cancel)
+                                 .add(ChecksEngine.Signals.review)
                                  .build,
                              ),
                            )

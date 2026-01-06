@@ -6,7 +6,7 @@ import org.scalamock.scalatest.MockFactory
 import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.postgres.testing.PostgresRuntimeAdapter
 import workflows4s.example.testuitls.{CirceEventCodec, PostgresSuite}
-import workflows4s.example.withdrawal.checks.{ChecksEngine, ChecksEvent}
+import workflows4s.example.withdrawal.checks.{ChecksEvent, IOChecksEngine}
 import workflows4s.testing.Runner
 
 class PostgresChecksEngineTest extends AnyFreeSpec with PostgresSuite with MockFactory with ChecksEngineTest.Suite {
@@ -19,8 +19,8 @@ class PostgresChecksEngineTest extends AnyFreeSpec with PostgresSuite with MockF
 
   "postgres" - {
     // Explicitly typed adapter to avoid any confusion with shadowed packages
-    val adapter: workflows4s.testing.WorkflowTestAdapter[IO, ChecksEngine.Context] =
-      new PostgresRuntimeAdapter[ChecksEngine.Context](xa, eventCodec)
+    val adapter: workflows4s.testing.WorkflowTestAdapter[IO, IOChecksEngine.Context.Ctx] =
+      new PostgresRuntimeAdapter[IOChecksEngine.Context.Ctx](xa, eventCodec)
 
     checkEngineTests(adapter)
   }

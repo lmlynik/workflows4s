@@ -6,7 +6,7 @@ import org.scalamock.scalatest.MockFactory
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpecLike
 import workflows4s.runtime.pekko.PekkoRuntimeAdapter
-import workflows4s.example.withdrawal.FutureWithdrawalWorkflow
+import workflows4s.example.withdrawal.FutureWithdrawalWorkflowHelper
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -31,9 +31,9 @@ class PekkoWithdrawalWorkflowTest
   }
 
   "pekko with Future" - {
-    "should create a PekkoRuntimeAdapter for FutureWithdrawalWorkflow context" in {
+    "should create a PekkoRuntimeAdapter for FutureWithdrawalWorkflowHelper context" in {
       // Verify that the adapter can be created with the Future-based workflow context
-      val adapter = new PekkoRuntimeAdapter[FutureWithdrawalWorkflow.Context.Ctx]("pekko-withdrawal-future")(using testKit.system)
+      val adapter = new PekkoRuntimeAdapter[FutureWithdrawalWorkflowHelper.Context.Ctx]("pekko-withdrawal-future")(using testKit.system)
       assert(adapter != null)
     }
   }

@@ -3,9 +3,9 @@ package workflows4s.example.pekko
 import java.util.UUID
 import scala.concurrent.Future
 import workflows4s.example.withdrawal.checks.Check
-import workflows4s.example.withdrawal.{FutureWithdrawalService, WithdrawalData, WithdrawalService}
+import workflows4s.example.withdrawal.{WithdrawalData, WithdrawalService}
 
-class FutureDummyWithdrawalService extends FutureWithdrawalService {
+class FutureDummyWithdrawalService extends WithdrawalService[Future] {
 
   override def calculateFees(amount: BigDecimal): Future[WithdrawalService.Fee] =
     Future.successful(WithdrawalService.Fee(amount * 0.1))
@@ -28,7 +28,7 @@ class FutureDummyWithdrawalService extends FutureWithdrawalService {
 
   override def cancelFundsLock(): Future[Unit] = Future.successful(())
 
-  override def getChecks(): List[Check[WithdrawalData.Validated]] = List()
+  override def getChecks(): List[Check[Future, WithdrawalData.Validated]] = List()
 }
 
 object FutureDummyWithdrawalService {

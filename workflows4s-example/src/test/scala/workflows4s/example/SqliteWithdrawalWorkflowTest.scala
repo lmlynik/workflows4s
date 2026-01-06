@@ -20,5 +20,5 @@ class SqliteWithdrawalWorkflowTest extends AnyFreeSpec with SqliteWorkdirSuite w
     withdrawalTests(new SqliteRuntimeAdapter(workdir, eventCodec))
   }
 
-  lazy val eventCodec: ByteCodec[WithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
+  lazy val eventCodec: ByteCodec[IOWithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
 }

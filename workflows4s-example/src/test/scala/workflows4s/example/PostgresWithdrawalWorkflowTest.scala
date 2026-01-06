@@ -18,8 +18,8 @@ class PostgresWithdrawalWorkflowTest extends AnyFreeSpec with PostgresSuite with
   }
 
   "postgres" - {
-    withdrawalTests(new PostgresRuntimeAdapter[WithdrawalWorkflow.Context.Ctx](xa, eventCodec))
+    withdrawalTests(new PostgresRuntimeAdapter[IOWithdrawalWorkflow.Context.Ctx](xa, eventCodec))
   }
 
-  lazy val eventCodec: ByteCodec[WithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
+  lazy val eventCodec: ByteCodec[IOWithdrawalWorkflow.Context.Event] = CirceEventCodec.get()
 }
