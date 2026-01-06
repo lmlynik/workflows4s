@@ -209,29 +209,30 @@ object WithdrawalWorkflow {
       WithdrawalCtx <: WorkflowContext { type Eff[A] = F[A]; type Event = WithdrawalEvent; type State = WithdrawalData },
   ]: WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] =
     new WorkflowEmbedding[ChecksCtx, WithdrawalCtx, WithdrawalData.Validated] {
-      override def convertEvent(e: WorkflowContext.Event[ChecksCtx]): WorkflowContext.Event[WithdrawalCtx] =
-        WithdrawalEvent.ChecksRun(e.asInstanceOf[ChecksEvent]).asInstanceOf[WorkflowContext.Event[WithdrawalCtx]]
 
-      override def unconvertEvent(e: WorkflowContext.Event[WithdrawalCtx]): Option[WorkflowContext.Event[ChecksCtx]] = e match {
-        case WithdrawalEvent.ChecksRun(inner) => Some(inner.asInstanceOf[WorkflowContext.Event[ChecksCtx]])
+      override def convertEvent(e: ChecksEvent): WithdrawalEvent =
+        WithdrawalEvent.ChecksRun(e)
+
+      override def unconvertEvent(e: WithdrawalEvent): Option[ChecksEvent] = e match {
+        case WithdrawalEvent.ChecksRun(inner) => Some(inner)
         case _                                => None
       }
 
-      override type OutputState[T <: WorkflowContext.State[ChecksCtx]] <: WorkflowContext.State[WithdrawalCtx] = T match {
+      override type OutputState[T <: ChecksState] <: WithdrawalData = T match {
         case ChecksState.InProgress => WithdrawalData.Checking
         case ChecksState.Decided    => WithdrawalData.Checked
       }
 
-      override def convertState[T <: WorkflowContext.State[ChecksCtx]](s: T, input: WithdrawalData.Validated): OutputState[T] = (s match {
+      override def convertState[T <: ChecksState](s: T, input: WithdrawalData.Validated): OutputState[T] = (s match {
         case x: ChecksState.InProgress => input.checking(x)
         case x: ChecksState.Decided    => input.checked(x)
       }).asInstanceOf[OutputState[T]]
 
-      override def unconvertState(outerState: WorkflowContext.State[WithdrawalCtx]): Option[WorkflowContext.State[ChecksCtx]] =
+      override def unconvertState(outerState: WithdrawalData): Option[ChecksState] =
         outerState match {
-          case _: WithdrawalData.Validated => Some(ChecksState.Empty.asInstanceOf[WorkflowContext.State[ChecksCtx]])
-          case x: WithdrawalData.Checking  => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
-          case x: WithdrawalData.Checked   => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
+          case _: WithdrawalData.Validated => Some(ChecksState.Empty)
+          case x: WithdrawalData.Checking  => Some(x.checkResults)
+          case x: WithdrawalData.Checked   => Some(x.checkResults)
           case _                           => None
         }
     }
