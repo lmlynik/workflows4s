@@ -13,8 +13,6 @@ class SqliteChecksEngineTest extends AnyFreeSpec with SqliteWorkdirSuite with Ch
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: ChecksEngineTestContext[IO] = new ChecksEngineTestContext[IO]
-
   override def createTrackingCheck(pendingCount: Int): Check[IO, Unit] & { def runNum: Int } =
     new Check[IO, Unit] {
       var runNum = 0
@@ -26,13 +24,13 @@ class SqliteChecksEngineTest extends AnyFreeSpec with SqliteWorkdirSuite with Ch
           IO {
             runNum += 1
           }.as(CheckResult.Pending())
-        case _                     => IO(CheckResult.Approved())
+
+        case _ => IO(CheckResult.Approved())
       }
     }
 
   "sqlite" - {
-    val adapter = new SqliteRuntimeAdapter[testContext.Context.Ctx](workdir, eventCodec)
-    checkEngineTests(adapter)
+    checkEngineTests(new SqliteRuntimeAdapter[testContext.Context.Ctx](workdir, eventCodec))
   }
 
   lazy val eventCodec: ByteCodec[testContext.Context.Event] = CirceEventCodec.get()

@@ -22,8 +22,6 @@ class PekkoChecksEngineTest extends ScalaTestWithActorTestKit(ActorTestKit("MyCl
 
   override given effect: Effect[Future] = FutureEffect.futureEffect
 
-  override val testContext: ChecksEngineTestContext[Future] = new ChecksEngineTestContext[Future]
-
   override def createTrackingCheck(pendingCount: Int): Check[Future, Unit] & { def runNum: Int } =
     new Check[Future, Unit] {
       var runNum = 0

@@ -12,8 +12,6 @@ class ChecksEngineTest extends AnyFreeSpec with ChecksEngineTestSuite[IO] {
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: ChecksEngineTestContext[IO] = new ChecksEngineTestContext[IO]
-
   override def createTrackingCheck(pendingCount: Int): Check[IO, Unit] & { def runNum: Int } =
     new Check[IO, Unit] {
       var runNum = 0

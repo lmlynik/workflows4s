@@ -24,8 +24,6 @@ class PekkoWithdrawalWorkflowTest
 
   override given effect: Effect[Future] = FutureEffect.futureEffect
 
-  override val testContext: WithdrawalWorkflowTestContext[Future] = new WithdrawalWorkflowTestContext[Future]
-
   "pekko" - {
     val adapter = new PekkoRuntimeAdapter[testContext.Context.Ctx]("pekko-withdrawal")(using testKit.system)
     withdrawalTests(adapter)

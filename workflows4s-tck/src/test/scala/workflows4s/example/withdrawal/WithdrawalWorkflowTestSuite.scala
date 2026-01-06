@@ -13,16 +13,11 @@ import workflows4s.testing.WorkflowTestAdapter
 import scala.concurrent.duration.*
 import scala.jdk.DurationConverters.JavaDurationOps
 
-/** Generic test suite for WithdrawalWorkflow that works with any effect type F[_]. Extend this trait and provide the required abstract members to run
-  * the test suite with your effect type.
-  */
 trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
-  // Abstract members that concrete tests must provide
   given effect: Effect[F]
 
-  /** The test context providing workflow contexts for the effect type */
-  val testContext: WithdrawalWorkflowTestContext[F]
+  val testContext: WithdrawalWorkflowTestContext[F] = new WithdrawalWorkflowTestContext[F]
 
   def withdrawalTests(
       testAdapter: => WorkflowTestAdapter[F, testContext.Context.Ctx],

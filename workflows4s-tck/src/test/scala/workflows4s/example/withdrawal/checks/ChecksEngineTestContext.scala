@@ -3,8 +3,6 @@ package workflows4s.example.withdrawal.checks
 import workflows4s.runtime.instanceengine.Effect
 import workflows4s.wio.WorkflowContext
 
-/** Generic context helper for ChecksEngine tests that works with any effect type F[_].
-  */
 class ChecksEngineTestContext[F[_]](using E: Effect[F]) {
 
   object Context extends WorkflowContext {

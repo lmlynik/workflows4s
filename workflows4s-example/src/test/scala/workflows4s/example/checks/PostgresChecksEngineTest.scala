@@ -13,8 +13,6 @@ class PostgresChecksEngineTest extends AnyFreeSpec with PostgresSuite with Check
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: ChecksEngineTestContext[IO] = new ChecksEngineTestContext[IO]
-
   override def createTrackingCheck(pendingCount: Int): Check[IO, Unit] & { def runNum: Int } =
     new Check[IO, Unit] {
       var runNum = 0
@@ -26,7 +24,8 @@ class PostgresChecksEngineTest extends AnyFreeSpec with PostgresSuite with Check
           IO {
             runNum += 1
           }.as(CheckResult.Pending())
-        case _                     => IO(CheckResult.Approved())
+
+        case _ => IO(CheckResult.Approved())
       }
     }
 

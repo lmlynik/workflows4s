@@ -17,7 +17,7 @@ trait EventIntrospection[Event] {
 
 trait WorkflowTestAdapter[F[_], Ctx <: WorkflowContext] extends StrictLogging {
 
-  implicit def effect: Effect[F]
+  given effect: Effect[F]
 
   def testTimeout: FiniteDuration = 10.seconds
   val clock: TestClock            = TestClock()

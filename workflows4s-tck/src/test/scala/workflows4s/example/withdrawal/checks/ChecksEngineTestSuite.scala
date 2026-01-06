@@ -8,19 +8,12 @@ import workflows4s.testing.WorkflowTestAdapter
 
 import scala.reflect.Selectable.reflectiveSelectable
 
-/** Generic test suite for ChecksEngine that works with any effect type F[_]. Extend this trait and provide the required abstract members to run the
-  * test suite with your effect type.
-  */
 trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
 
-  // Abstract members that concrete tests must provide
   given effect: Effect[F]
 
-  /** The test context providing workflow contexts for the effect type */
-  val testContext: ChecksEngineTestContext[F]
+  val testContext: ChecksEngineTestContext[F] = new ChecksEngineTestContext[F]
 
-  /** Create a Check that tracks how many times it has been run. Returns Pending for the first `pendingCount` runs, then Approved.
-    */
   def createTrackingCheck(pendingCount: Int): Check[F, Unit] & { def runNum: Int }
 
   def checkEngineTests(

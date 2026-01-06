@@ -12,8 +12,6 @@ class WithdrawalWorkflowTest extends AnyFreeSpec with WithdrawalWorkflowTestSuit
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: WithdrawalWorkflowTestContext[IO] = new WithdrawalWorkflowTestContext[IO]
-
   "in-memory" - {
     val adapter = new WorkflowTestAdapter.InMemory[IO, testContext.Context.Ctx]()
     withdrawalTests(adapter)

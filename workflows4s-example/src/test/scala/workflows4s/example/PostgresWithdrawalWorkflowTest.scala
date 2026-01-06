@@ -13,8 +13,6 @@ class PostgresWithdrawalWorkflowTest extends AnyFreeSpec with PostgresSuite with
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: WithdrawalWorkflowTestContext[IO] = new WithdrawalWorkflowTestContext[IO]
-
   "postgres" - {
     withdrawalTests(new PostgresRuntimeAdapter[testContext.Context.Ctx](xa, eventCodec))
   }

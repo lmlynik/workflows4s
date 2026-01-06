@@ -2,6 +2,7 @@ package workflows4s.example.withdrawal.checks
 
 import com.typesafe.scalalogging.StrictLogging
 import workflows4s.runtime.instanceengine.Effect
+import workflows4s.runtime.instanceengine.Effect.*
 import workflows4s.wio.{SignalDef, WorkflowContext}
 
 import scala.concurrent.duration.DurationInt
@@ -53,21 +54,20 @@ class ChecksEngine[F[_], Ctx <: WorkflowContext { type Eff[A] = F[A]; type Event
 
   private def runPendingChecks: WIO[ChecksState.Pending, Nothing, ChecksState.Pending] =
     WIO
-      .runIO[ChecksState.Pending](state => {
+      .runIO[ChecksState.Pending] { state =>
         val input   = state.input.asInstanceOf[ChecksInput[F]]
         val pending = state.pendingChecks
         val checks  = input.checks.view.filterKeys(pending.contains).values.toList
-        effect.map(
-          effect.traverse(checks)(check =>
-            effect.handleErrorWith(
-              effect.map(check.run(input.data))(result => (check.key, result)),
-            )(_ => {
-              logger.error("Error when running a check, falling back to manual review.")
-              effect.pure((check.key, CheckResult.RequiresReview()))
-            }),
-          ),
-        )(results => ChecksEvent.ChecksRun(results.toMap))
-      })
+
+        for {
+          results <- effect.traverse(checks) { check =>
+                       check.run(input.data).map(result => (check.key, result)).handleErrorWith { _ =>
+                         logger.error("Error when running a check, falling back to manual review.")
+                         (check.key, CheckResult.RequiresReview()).pure[F]
+                       }
+                     }
+        } yield ChecksEvent.ChecksRun(results.toMap)
+      }
       .handleEvent((state, evt) => state.addResults(evt.asInstanceOf[ChecksEvent.ChecksRun].results))
       .autoNamed()
 

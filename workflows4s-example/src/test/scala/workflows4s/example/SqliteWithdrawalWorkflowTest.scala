@@ -13,8 +13,6 @@ class SqliteWithdrawalWorkflowTest extends AnyFreeSpec with SqliteWorkdirSuite w
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
 
-  override val testContext: WithdrawalWorkflowTestContext[IO] = new WithdrawalWorkflowTestContext[IO]
-
   "sqlite" - {
     withdrawalTests(new SqliteRuntimeAdapter(workdir, eventCodec))
   }
