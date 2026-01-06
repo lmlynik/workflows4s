@@ -8,7 +8,7 @@ import workflows4s.example.withdrawal.WithdrawalService.{ExecutionResponse, Fee,
 import workflows4s.example.withdrawal.WithdrawalSignal.CreateWithdrawal
 import workflows4s.example.withdrawal.checks.*
 import workflows4s.runtime.instanceengine.Effect
-import workflows4s.testing.{Runner, WorkflowTestAdapter}
+import workflows4s.testing.WorkflowTestAdapter
 
 import scala.concurrent.duration.*
 import scala.jdk.DurationConverters.JavaDurationOps
@@ -20,7 +20,6 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
   // Abstract members that concrete tests must provide
   given effect: Effect[F]
-  given runner: Runner[F]
 
   /** The test context providing workflow contexts for the effect type */
   val testContext: WithdrawalWorkflowTestContext[F]
@@ -157,10 +156,10 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
       def checkRecovery(): Unit = {
         logger.debug("Checking recovery")
-        val originalState  = runner.run(actor.wf.queryState())
+        val originalState  = effect.runSyncUnsafe(actor.wf.queryState())
         val secondActor    = adapter.recover(actor.wf)
         val recoveredState = eventually {
-          runner.run(secondActor.queryState())
+          effect.runSyncUnsafe(secondActor.queryState())
         }
         val _              = assert(recoveredState == originalState)
       }
@@ -186,18 +185,18 @@ trait WithdrawalWorkflowTestSuite[F[_]] extends AnyFreeSpecLike {
 
       class WithdrawalActor(val wf: adapter.Actor) {
         def init(req: CreateWithdrawal): Unit = {
-          val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req))
+          val _ = effect.runSyncUnsafe(wf.deliverSignal(WithdrawalWorkflow.Signals.createWithdrawal, req))
         }
 
         def confirmExecution(req: WithdrawalSignal.ExecutionCompleted): Unit = {
-          val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req))
+          val _ = effect.runSyncUnsafe(wf.deliverSignal(WithdrawalWorkflow.Signals.executionCompleted, req))
         }
 
         def cancel(req: WithdrawalSignal.CancelWithdrawal): Unit = {
-          val _ = runner.run(wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req))
+          val _ = effect.runSyncUnsafe(wf.deliverSignal(WithdrawalWorkflow.Signals.cancel, req))
         }
 
-        def queryData(): WithdrawalData = runner.run(wf.queryState())
+        def queryData(): WithdrawalData = effect.runSyncUnsafe(wf.queryState())
       }
     }
   }

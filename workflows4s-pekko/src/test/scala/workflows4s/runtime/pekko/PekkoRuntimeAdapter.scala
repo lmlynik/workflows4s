@@ -9,11 +9,11 @@ import org.apache.pekko.util.Timeout
 import workflows4s.runtime.{DelegateWorkflowInstance, WorkflowInstance, WorkflowInstanceId}
 import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
 import workflows4s.runtime.pekko.PekkoRuntimeAdapter.Stop
-import workflows4s.testing.{EventIntrospection, Runner, WorkflowTestAdapter}
+import workflows4s.testing.{EventIntrospection, WorkflowTestAdapter}
 import workflows4s.wio.*
 
 import java.util.UUID
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.*
 
 object PekkoRuntimeAdapter {
@@ -31,11 +31,6 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
 
   /** Pekko messaging is slower than in-memory; override the default timeout. */
   override def testTimeout: FiniteDuration = 60.seconds
-
-  /** Implementation of the Runner for Future */
-  implicit override val runner: Runner[Future] = new Runner[Future] {
-    def run[A](fa: Future[A]): A = Await.result(fa, testTimeout)
-  }
 
   // --- Pekko Specifics ---
   private val sharding = ClusterSharding(actorSystem)
@@ -86,7 +81,7 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
 
     // 1. Tell the current actor to stop
     val isStopped = first.entityRef.ask[Unit](replyTo => Stop(replyTo))
-    runner.run(isStopped)
+    effect.runSyncUnsafe(isStopped)
 
     // 2. Brief wait to allow the ShardRegion to realize the actor is gone
     Thread.sleep(200)

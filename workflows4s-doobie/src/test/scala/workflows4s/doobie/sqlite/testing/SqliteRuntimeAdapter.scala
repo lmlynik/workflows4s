@@ -5,7 +5,7 @@ import workflows4s.doobie.ByteCodec
 import workflows4s.doobie.sqlite.SqliteRuntime
 import workflows4s.runtime.{DelegateWorkflowInstance, WorkflowInstance, WorkflowInstanceId}
 import workflows4s.runtime.instanceengine.Effect
-import workflows4s.testing.{EventIntrospection, Runner, WorkflowTestAdapter}
+import workflows4s.testing.{EventIntrospection, WorkflowTestAdapter}
 import workflows4s.wio.*
 import workflows4s.cats.CatsEffect.ioEffect
 
@@ -19,10 +19,6 @@ class SqliteRuntimeAdapter[Ctx <: WorkflowContext](
 
   // satisfy the WorkflowTestAdapter requirements for IO
   implicit override val effect: Effect[IO] = ioEffect
-  implicit override val runner: Runner[IO] = new Runner[IO] {
-    import cats.effect.unsafe.implicits.global
-    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
-  }
 
   /** Wrapper for the SQLite-backed instance */
   case class SqliteTestActor(
@@ -49,7 +45,7 @@ class SqliteRuntimeAdapter[Ctx <: WorkflowContext](
       instance <- runtime.createInstance(idString)
     } yield SqliteTestActor(instance, instance.id)
 
-    runner.run(action)
+    effect.runSyncUnsafe(action)
   }
 
   override def recover(first: Actor): Actor = {

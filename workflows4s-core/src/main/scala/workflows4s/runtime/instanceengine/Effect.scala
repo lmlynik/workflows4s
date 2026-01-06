@@ -117,6 +117,11 @@ trait Effect[F[_]] {
       case Right(a) => map(finalizer)(_ => a)
       case Left(e)  => flatMap(finalizer)(_ => raiseError(e))
     }
+
+  /** Run the effect synchronously and return the result. This is unsafe because it blocks the current thread and may throw exceptions. Use only in
+    * tests or when you're certain the effect will complete quickly.
+    */
+  def runSyncUnsafe[A](fa: F[A]): A
 }
 
 object Effect {
@@ -194,6 +199,8 @@ object Effect {
         case Outcome.Canceled     => throw new InterruptedException("Canceled")
       }
     }
+
+    def runSyncUnsafe[A](fa: cats.Id[A]): A = fa
   }
 
   // Syntax extensions

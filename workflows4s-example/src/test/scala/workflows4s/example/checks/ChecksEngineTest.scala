@@ -1,21 +1,16 @@
 package workflows4s.example.checks
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.cats.CatsEffect
 import workflows4s.example.TestUtils
 import workflows4s.example.withdrawal.checks.*
 import workflows4s.runtime.instanceengine.Effect
-import workflows4s.testing.{Runner, WorkflowTestAdapter}
+import workflows4s.testing.WorkflowTestAdapter
 
 class ChecksEngineTest extends AnyFreeSpec with ChecksEngineTestSuite[IO] {
 
   override given effect: Effect[IO] = CatsEffect.ioEffect
-
-  override given runner: Runner[IO] = new Runner[IO] {
-    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
-  }
 
   override val testContext: ChecksEngineTestContext[IO] = new ChecksEngineTestContext[IO]
 

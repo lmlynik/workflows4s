@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.scalatest.Inside.inside
 import org.scalatest.freespec.AnyFreeSpecLike
 import workflows4s.runtime.instanceengine.Effect
-import workflows4s.testing.{Runner, WorkflowTestAdapter}
+import workflows4s.testing.WorkflowTestAdapter
 
 import scala.reflect.Selectable.reflectiveSelectable
 
@@ -15,7 +15,6 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
 
   // Abstract members that concrete tests must provide
   given effect: Effect[F]
-  given runner: Runner[F]
 
   /** The test context providing workflow contexts for the effect type */
   val testContext: ChecksEngineTestContext[F]
@@ -87,17 +86,17 @@ trait ChecksEngineTestSuite[F[_]] extends AnyFreeSpecLike {
       def checkRecovery(firstActor: ChecksActor): Unit = {
         val originalState  = firstActor.state
         val secondActor    = adapter.recover(firstActor.wf)
-        val recoveredState = runner.run(secondActor.queryState())
+        val recoveredState = effect.runSyncUnsafe(secondActor.queryState())
         val _              = assert(recoveredState == originalState)
       }
 
       class ChecksActor(val wf: adapter.Actor) {
-        def run(): Unit = runner.run(wf.wakeup())
+        def run(): Unit = effect.runSyncUnsafe(wf.wakeup())
 
-        def state: ChecksState = runner.run(wf.queryState())
+        def state: ChecksState = effect.runSyncUnsafe(wf.queryState())
 
         def review(decision: ReviewDecision): Unit = {
-          val _ = runner.run(wf.deliverSignal(ChecksEngine.signals, decision))
+          val _ = effect.runSyncUnsafe(wf.deliverSignal(ChecksEngine.signals, decision))
         }
       }
     }

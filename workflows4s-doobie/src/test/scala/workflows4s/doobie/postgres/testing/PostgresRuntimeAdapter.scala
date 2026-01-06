@@ -5,7 +5,7 @@ import doobie.util.transactor.Transactor
 import workflows4s.doobie.{ByteCodec, DatabaseRuntime}
 import workflows4s.runtime.{DelegateWorkflowInstance, WorkflowInstance, WorkflowInstanceId}
 import workflows4s.runtime.instanceengine.Effect
-import workflows4s.testing.{EventIntrospection, Runner, WorkflowTestAdapter}
+import workflows4s.testing.{EventIntrospection, WorkflowTestAdapter}
 import workflows4s.utils.StringUtils
 import workflows4s.wio.*
 import workflows4s.cats.CatsEffect.ioEffect
@@ -15,12 +15,8 @@ class PostgresRuntimeAdapter[Ctx <: WorkflowContext](
     eventCodec: ByteCodec[WCEvent[Ctx]],
 ) extends WorkflowTestAdapter[IO, Ctx] {
 
-  // Provide the IO-specific effect and runner
+  // Provide the IO-specific effect
   implicit override val effect: Effect[IO] = ioEffect
-  implicit override val runner: Runner[IO] = new Runner[IO] {
-    import cats.effect.unsafe.implicits.global
-    def run[A](fa: IO[A]): A = fa.unsafeRunSync()
-  }
 
   // Define the Actor type for this adapter
   case class PostgresTestActor(
@@ -44,7 +40,7 @@ class PostgresRuntimeAdapter[Ctx <: WorkflowContext](
     val runtime  = DatabaseRuntime.create[Ctx](workflow, state, xa, engine, eventCodec, "test")
     val idString = StringUtils.randomAlphanumericString(12)
 
-    val instance = runner.run(runtime.createInstance(idString))
+    val instance = effect.runSyncUnsafe(runtime.createInstance(idString))
     PostgresTestActor(instance, WorkflowInstanceId("test", idString))
   }
 

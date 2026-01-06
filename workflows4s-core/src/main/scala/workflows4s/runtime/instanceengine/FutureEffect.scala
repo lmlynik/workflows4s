@@ -1,6 +1,7 @@
 package workflows4s.runtime.instanceengine
 
-import scala.concurrent.{ExecutionContext, Future, Promise, blocking}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise, blocking}
+import scala.concurrent.duration.Duration
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicReference
 import scala.util.{Failure, Success}
@@ -97,5 +98,7 @@ object FutureEffect {
           }
         }
       }
+
+      def runSyncUnsafe[A](fa: Future[A]): A = Await.result(fa, Duration.Inf)
     }
 }

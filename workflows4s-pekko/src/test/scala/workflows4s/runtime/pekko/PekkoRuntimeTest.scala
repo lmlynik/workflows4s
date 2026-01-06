@@ -17,7 +17,7 @@ class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRunt
   override given effect: Effect[Future] = FutureEffect.futureEffect
 
   override def unsafeRun(program: => Future[Unit]): Unit = {
-    Await.result(program, 60.seconds)
+    effect.runSyncUnsafe(program)
   }
 
   override def beforeAll(): Unit = {
@@ -49,12 +49,12 @@ class PekkoRuntimeTest extends ScalaTestWithActorTestKit(ActorTestKit("PekkoRunt
         GenericTestCtx.State.empty,
       )
 
-      pekkoAdapter.runner.run(actor.wakeup())
-      val stateBefore = pekkoAdapter.runner.run(actor.queryState())
+      effect.runSyncUnsafe(actor.wakeup())
+      val stateBefore = effect.runSyncUnsafe(actor.queryState())
 
       // Test the recovery logic specific to the Pekko adapter
       val recoveredActor = pekkoAdapter.recover(actor)
-      val stateAfter     = pekkoAdapter.runner.run(recoveredActor.queryState())
+      val stateAfter     = effect.runSyncUnsafe(recoveredActor.queryState())
 
       assert(stateBefore == stateAfter)
     }

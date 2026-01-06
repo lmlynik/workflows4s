@@ -19,13 +19,11 @@ trait WorkflowTestAdapter[F[_], Ctx <: WorkflowContext] extends StrictLogging {
 
   implicit def effect: Effect[F]
 
-  implicit def runner: Runner[F]
-
   def testTimeout: FiniteDuration = 10.seconds
   val clock: TestClock            = TestClock()
 
-  protected lazy val knockerUpper: TestKnockerUpper[F] = runner.run(TestKnockerUpper.create[F])
-  lazy val registry: InMemoryWorkflowRegistry[F]       = runner.run(InMemoryWorkflowRegistry[F](clock))
+  protected lazy val knockerUpper: TestKnockerUpper[F] = effect.runSyncUnsafe(TestKnockerUpper.create[F])
+  lazy val registry: InMemoryWorkflowRegistry[F]       = effect.runSyncUnsafe(InMemoryWorkflowRegistry[F](clock))
 
   lazy val engine: WorkflowInstanceEngine[F] = WorkflowInstanceEngine.default(knockerUpper, registry, clock)
 
@@ -36,12 +34,12 @@ trait WorkflowTestAdapter[F[_], Ctx <: WorkflowContext] extends StrictLogging {
 
   final def executeDueWakeup(actor: Actor): Unit = {
     // check generic logic
-    val wakeupToCheck = runner.run(knockerUpper.lastRegisteredWakeup(actor.id))
+    val wakeupToCheck = effect.runSyncUnsafe(knockerUpper.lastRegisteredWakeup(actor.id))
 
     logger.debug(s"Executing due wakeup for actor ${actor.id}. Last registered wakeup: ${wakeupToCheck}")
 
     if wakeupToCheck.exists(_.isBefore(clock.instant())) then {
-      runner.run(actor.wakeup())
+      effect.runSyncUnsafe(actor.wakeup())
     }
   }
 }
@@ -50,7 +48,6 @@ object WorkflowTestAdapter {
 
   class InMemory[F[_], Ctx <: WorkflowContext](using
       override val effect: Effect[F],
-      override val runner: Runner[F],
   ) extends WorkflowTestAdapter[F, Ctx] {
 
     case class InMemoryActor(
@@ -61,7 +58,7 @@ object WorkflowTestAdapter {
         with EventIntrospection[WCEvent[Ctx]] {
 
       val delegate: WorkflowInstance[F, WCState[Ctx]]           = instance
-      override def getEvents: Seq[WCEvent[Ctx]]                 = runner.run(instance.getEvents)
+      override def getEvents: Seq[WCEvent[Ctx]]                 = effect.runSyncUnsafe(instance.getEvents)
       override def getExpectedSignals: F[List[SignalDef[?, ?]]] = instance.getExpectedSignals
     }
 
@@ -74,7 +71,7 @@ object WorkflowTestAdapter {
         inst    <- runtime.createInMemoryInstance("test-instance-1")
       } yield InMemoryActor(List(), inst, runtime)
 
-      runner.run(action)
+      effect.runSyncUnsafe(action)
     }
 
     override def recover(first: Actor): Actor = {
@@ -84,7 +81,7 @@ object WorkflowTestAdapter {
         _         <- recovered.recover(events)
       } yield InMemoryActor(events, recovered, first.runtime)
 
-      runner.run(action)
+      effect.runSyncUnsafe(action)
     }
   }
 }

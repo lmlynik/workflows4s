@@ -7,7 +7,7 @@ import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import workflows4s.example.withdrawal.checks.*
 import workflows4s.runtime.instanceengine.{Effect, FutureEffect}
 import workflows4s.runtime.pekko.PekkoRuntimeAdapter
-import workflows4s.testing.{Runner, WorkflowTestAdapter}
+import workflows4s.testing.WorkflowTestAdapter
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -21,10 +21,6 @@ class PekkoChecksEngineTest extends ScalaTestWithActorTestKit(ActorTestKit("MyCl
   }
 
   override given effect: Effect[Future] = FutureEffect.futureEffect
-
-  override given runner: Runner[Future] = new Runner[Future] {
-    def run[A](fa: Future[A]): A = Await.result(fa, 10.seconds)
-  }
 
   override val testContext: ChecksEngineTestContext[Future] = new ChecksEngineTestContext[Future]
 

@@ -225,7 +225,7 @@ object WithdrawalWorkflow {
       }).asInstanceOf[OutputState[T]]
 
       override def unconvertState(outerState: WorkflowContext.State[WithdrawalCtx]): Option[WorkflowContext.State[ChecksCtx]] =
-        outerState.asInstanceOf[WithdrawalData] match {
+        outerState match {
           case _: WithdrawalData.Validated => Some(ChecksState.Empty.asInstanceOf[WorkflowContext.State[ChecksCtx]])
           case x: WithdrawalData.Checking  => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
           case x: WithdrawalData.Checked   => Some(x.checkResults.asInstanceOf[WorkflowContext.State[ChecksCtx]])
