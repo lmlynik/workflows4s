@@ -26,7 +26,7 @@ class PekkoRuntimeAdapter[Ctx <: WorkflowContext](entityKeyPrefix: String)(impli
     extends WorkflowTestAdapter[LazyFuture, Ctx]
     with StrictLogging {
 
-  implicit val ec: ExecutionContext        = actorSystem.executionContext
+  implicit val ec: ExecutionContext       = actorSystem.executionContext
   implicit def effect: Effect[LazyFuture] = FutureEffect.futureEffect
 
   /** Pekko messaging is slower than in-memory; override the default timeout. */

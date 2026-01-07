@@ -41,9 +41,12 @@ class WithdrawalWorkflowTest extends AnyFreeSpec with WithdrawalWorkflowTestSuit
   }
 
   // Dummy ChecksEngine for clean declarative model visualization
-  class DummyChecksEngine[F[_], Ctx <: workflows4s.wio.WorkflowContext {
-    type Eff[A] = F[A]; type Event = checks.ChecksEvent; type State = checks.ChecksState
-  }](ctx: Ctx)(using effect: workflows4s.runtime.instanceengine.Effect[F])
+  class DummyChecksEngine[
+      F[_],
+      Ctx <: workflows4s.wio.WorkflowContext {
+        type Eff[A] = F[A]; type Event = checks.ChecksEvent; type State = checks.ChecksState
+      },
+  ](ctx: Ctx)(using effect: workflows4s.runtime.instanceengine.Effect[F])
       extends checks.ChecksEngine[F, Ctx](ctx) {
     import ctx.WIO
     import checks.*

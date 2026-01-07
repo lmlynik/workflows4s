@@ -1,10 +1,9 @@
 package workflows4s.example.withdrawal.checks
 
 import workflows4s.wio.FutureWorkflowContext
-import workflows4s.runtime.instanceengine.{LazyFuture, FutureEffect}
+import workflows4s.runtime.instanceengine.{FutureEffect, LazyFuture}
 
-/** Future-specific ChecksEngine for use with Pekko and other Future-based runtimes.
-  * Internally uses LazyFuture for implementation.
+/** Future-specific ChecksEngine for use with Pekko and other Future-based runtimes. Internally uses LazyFuture for implementation.
   */
 object FutureChecksEngineHelper {
 

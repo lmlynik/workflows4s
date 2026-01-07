@@ -21,22 +21,20 @@ import scala.util.{Failure, Success}
   */
 final case class LazyFuture[A](private val thunk: () => Future[A]) {
 
-  /** Execute the lazy future and return the underlying Future. */
   def run: Future[A] = thunk()
 }
 
 object LazyFuture {
 
-  /** Create a LazyFuture from an already completed value. */
   def successful[A](a: A): LazyFuture[A] = LazyFuture(() => Future.successful(a))
 
-  /** Create a LazyFuture from an already failed computation. */
   def failed[A](e: Throwable): LazyFuture[A] = LazyFuture(() => Future.failed(e))
 
-  /** Create a LazyFuture that will evaluate the given expression lazily. */
-  def delay[A](a: => A): LazyFuture[A] = LazyFuture(() => Future.successful(a))
+  def delay[A](a: => A): LazyFuture[A] = LazyFuture { () =>
+    try Future.successful(a)
+    catch { case e: Throwable => Future.failed(e) }
+  }
 
-  /** Create a LazyFuture from an eager Future (use with caution - the Future will start immediately). */
   def fromFuture[A](f: => Future[A]): LazyFuture[A] = LazyFuture(() => f)
 
   given lazyFutureEffect(using ec: ExecutionContext): Effect[LazyFuture] =
@@ -56,12 +54,16 @@ object LazyFuture {
           }
       }
 
-      def pure[A](a: A): LazyFuture[A]                                                           = LazyFuture.successful(a)
-      def flatMap[A, B](fa: LazyFuture[A])(f: A => LazyFuture[B]): LazyFuture[B]                 =
+      def pure[A](a: A): LazyFuture[A] = LazyFuture.successful(a)
+
+      def flatMap[A, B](fa: LazyFuture[A])(f: A => LazyFuture[B]): LazyFuture[B] =
         LazyFuture(() => fa.run.flatMap(a => f(a).run))
-      def map[A, B](fa: LazyFuture[A])(f: A => B): LazyFuture[B]                                 =
+
+      def map[A, B](fa: LazyFuture[A])(f: A => B): LazyFuture[B] =
         LazyFuture(() => fa.run.map(f))
-      def raiseError[A](e: Throwable): LazyFuture[A]                                             = LazyFuture.failed(e)
+
+      def raiseError[A](e: Throwable): LazyFuture[A] = LazyFuture.failed(e)
+
       def handleErrorWith[A](fa: => LazyFuture[A])(f: Throwable => LazyFuture[A]): LazyFuture[A] =
         LazyFuture(() => fa.run.recoverWith { case e => f(e).run })
 
