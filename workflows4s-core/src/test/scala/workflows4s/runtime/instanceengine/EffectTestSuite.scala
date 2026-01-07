@@ -10,9 +10,16 @@ trait EffectTestSuite[F[_]] extends AnyFreeSpecLike with Matchers {
 
   val E: Effect[F] = effect
 
-  /** Abstract method for testing failures. Implementations should run the effect and return the thrown exception.
+  /** Default implementation for testing failures. Runs the effect using runSyncUnsafe and returns the thrown exception. Can be overridden if a
+    * specific effect type needs custom failure handling.
     */
-  def assertFailsWith[A](fa: F[A]): Throwable
+  def assertFailsWith[A](fa: F[A]): Throwable = {
+    import scala.util.{Failure, Success, Try}
+    Try(effect.runSyncUnsafe(fa)) match {
+      case Failure(e) => e
+      case Success(_) => fail("Expected failure but got success")
+    }
+  }
 
   /** Common test suite for all Effect implementations. Contains 20 tests covering all Effect operations.
     */

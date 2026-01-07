@@ -5,19 +5,10 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import workflows4s.runtime.instanceengine.{Effect, EffectTestSuite, Outcome}
 
-import scala.util.{Failure, Success, Try}
-
 class CatsEffectTest extends AnyFreeSpec with EffectTestSuite[IO] with Matchers {
 
   import CatsEffect.ioEffect
   given effect: Effect[IO] = Effect[IO]
-
-  override def assertFailsWith[A](fa: IO[A]): Throwable = {
-    Try(effect.runSyncUnsafe(fa)) match {
-      case Failure(e) => e
-      case Success(_) => fail("Expected failure but got success")
-    }
-  }
 
   "CatsEffect (IO)" - {
     effectTests()
