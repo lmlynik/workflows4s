@@ -12,7 +12,7 @@ trait LazyFutureWorkflowContext extends WorkflowContext {
 
   /** Override this to provide a custom ExecutionContext. Defaults to the global ExecutionContext.
     */
-  given executionContext: ExecutionContext = ExecutionContext.global
+  def executionContext: ExecutionContext = ExecutionContext.global
 
-  given effect: Effect[Eff] = LazyFuture.lazyFutureEffect
+  implicit def effect: Effect[Eff] = LazyFuture.lazyFutureEffect(using executionContext)
 }
